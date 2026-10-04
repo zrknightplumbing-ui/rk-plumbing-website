@@ -25,6 +25,45 @@ footer{background:var(--navy);color:#c9d7e6;padding:30px 0}.footer-row{display:f
 @media(max-width:800px){nav{display:none}.hero-grid,.about-grid,.contact-grid{grid-template-columns:1fr}.cards,.gallery-grid,.review-grid{grid-template-columns:1fr 1fr}.hero{padding:62px 0}.band .container,.footer-row{flex-direction:column;align-items:flex-start}}
 @media(max-width:520px){.cards,.gallery-grid,.review-grid{grid-template-columns:1fr}.top .container{flex-direction:column;gap:2px}.logo img{width:145px}.hero h1{font-size:2.7rem}section{padding:60px 0}}
 </style>
+<script>
+(() => {
+  const form = document.getElementById('service-request-form');
+  const status = document.getElementById('form-status');
+  if (!form || !status) return;
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    button.textContent = 'Sending…';
+    status.textContent = '';
+    status.style.color = '';
+
+    try {
+      const response = await fetch('/api/request-service', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.fromEntries(new FormData(form).entries()))
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.message || 'Unable to send your request.');
+      }
+
+      form.reset();
+      status.textContent = data.message || 'Thanks! Your request was sent.';
+      status.style.color = '#0754a6';
+    } catch (error) {
+      status.textContent = error.message || 'Unable to send your request. Please call 603-710-9777.';
+      status.style.color = '#b42318';
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Send Service Request';
+    }
+  });
+})();
+</script>
 </head>
 <body>
 <div class="top"><div class="container"><span>RK Plumbing LLC • Newport, NH 03773</span><a href="tel:6037109777">Call 603-710-9777</a></div></div>
@@ -94,8 +133,14 @@ footer{background:var(--navy);color:#c9d7e6;padding:30px 0}.footer-row{display:f
 <div class="contact-row"><div class="contact-icon">✉</div><div><b>Email</b><a href="mailto:rkplumbingpro@gmail.com">rkplumbingpro@gmail.com</a></div></div>
 <div class="contact-row"><div class="contact-icon">⌖</div><div><b>Location</b><span>Newport, NH 03773</span></div></div>
 </div>
-<div style="margin-top:24px;padding:18px;background:#f1f1f1;border-left:5px solid #999"><b>Follow RK Plumbing on Facebook</b><br><a href="https://www.facebook.com/profile.php?id=61577901551053" target="_blank" rel="noopener" style="text-decoration:underline;font-weight:800">Visit our Facebook page</a></div><div class="contact-card"><form onsubmit="event.preventDefault();window.location.href='mailto:rkplumbingpro@gmail.com?subject=RK%20Plumbing%20Service%20Request&body='+encodeURIComponent('Name: '+name.value+'\\nPhone: '+phone.value+'\\n\\nService needed:\\n'+message.value)">
-<input id="name" required placeholder="Your name"><input id="phone" required type="tel" placeholder="Phone number"><textarea id="message" required placeholder="Tell us what plumbing work you need"></textarea><button class="btn btn-blue" type="submit">Email Service Request</button>
+<div style="margin-top:24px;padding:18px;background:#f1f1f1;border-left:5px solid #999"><b>Follow RK Plumbing on Facebook</b><br><a href="https://www.facebook.com/profile.php?id=61577901551053" target="_blank" rel="noopener" style="text-decoration:underline;font-weight:800">Visit our Facebook page</a></div><div class="contact-card"><form id="service-request-form">
+<input id="name" name="name" required placeholder="Your name" autocomplete="name">
+<input id="phone" name="phone" required type="tel" placeholder="Phone number" autocomplete="tel">
+<input id="email" name="email" type="email" placeholder="Email address (optional)" autocomplete="email">
+<textarea id="message" name="message" required placeholder="Tell us what plumbing work you need"></textarea>
+<input name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;opacity:0;height:0;width:0">
+<button class="btn btn-blue" type="submit">Send Service Request</button>
+<div id="form-status" aria-live="polite" style="font-weight:800"></div>
 </form></div>
 </div></div></section>
 </main>
