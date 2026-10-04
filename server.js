@@ -84,6 +84,14 @@ async function sendEmail(subject, textBody, htmlBody) {
   }
 }
 
+app.get('/api/health', (req, res) => {
+  res.json({
+    ok: true,
+    smsConfigured: Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_FROM_NUMBER),
+    emailConfigured: Boolean(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL)
+  });
+});
+
 app.post('/api/request-service', async (req, res) => {
   try {
     const ip = getClientIp(req);
