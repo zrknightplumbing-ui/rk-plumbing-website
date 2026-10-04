@@ -190,7 +190,9 @@ function escapeHtml(value) {
     .replaceAll("'", '&#039;');
 }
 
-app.get('*', (req, res, next) => {
+app.use(express.static(__dirname));
+
+app.use((req, res, next) => {
   if (req.path.startsWith('/api/')) return next();
   res.sendFile(require('path').join(__dirname, 'index.html'));
 });
