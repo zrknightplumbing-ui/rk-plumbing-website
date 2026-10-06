@@ -20,7 +20,7 @@ section{padding:80px 0}.section-head{max-width:760px;margin:0 auto 45px;text-ali
 .band{background:var(--blue);color:#fff;padding:55px 0}.band .container{display:flex;justify-content:space-between;align-items:center;gap:30px}.band h2{margin:0;font-size:2rem}.band p{margin:7px 0 0;color:#eaf4ff}
 .contact{background:var(--light)}.contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:25px}.contact-card{background:#fff;border:1px solid var(--line);padding:30px;border-radius:8px;box-shadow:0 8px 24px rgba(11,35,64,.06)}.contact-row{display:flex;gap:15px;margin:19px 0}.contact-row b{display:block;color:var(--navy)}.contact-row a{font-weight:800;text-decoration:underline;color:var(--blue-dark)}.contact-icon{width:42px;height:42px;background:var(--blue);color:#fff;border-radius:50%;display:grid;place-items:center;flex:none}form{display:grid;gap:13px}input,textarea{width:100%;padding:14px;border:1px solid #b9c9d9;border-radius:6px;font:inherit}input:focus,textarea:focus{outline:3px solid rgba(11,114,217,.16);border-color:var(--blue)}textarea{min-height:130px;resize:vertical}
 footer{background:var(--navy);color:#c9d7e6;padding:30px 0}.footer-row{display:flex;justify-content:space-between;align-items:center;gap:20px}.footer-brand{color:#fff;font-weight:900;font-size:1.1rem}footer a{text-decoration:underline;color:#fff}
-.gallery{background:#fff}.gallery-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.photo-card{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#f5f9fd}.photo-placeholder{aspect-ratio:4/3;display:grid;place-items:center;padding:25px;text-align:center;color:#65778a;background:linear-gradient(135deg,#f2f7fc,#dceafa);font-weight:800;text-transform:uppercase;letter-spacing:.05em}.photo-card figcaption{background:#fff;padding:14px 16px;font-weight:700;color:var(--navy)}
+.gallery{background:#fff}.gallery-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.photo-card{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#f5f9fd}.photo-card img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover}.photo-placeholder{aspect-ratio:4/3;display:grid;place-items:center;padding:25px;text-align:center;color:#65778a;background:linear-gradient(135deg,#f2f7fc,#dceafa);font-weight:800;text-transform:uppercase;letter-spacing:.05em}.photo-card figcaption{background:#fff;padding:14px 16px;font-weight:700;color:var(--navy)}
 .reviews{background:var(--sky)}.review-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.review{background:#fff;border:1px solid var(--line);border-radius:8px;padding:25px;box-shadow:0 8px 22px rgba(11,35,64,.05)}.stars{font-size:1.15rem;letter-spacing:2px;margin-bottom:12px;color:var(--orange)}.review p{font-size:1.02rem;margin:0 0 15px;color:#44576a}.reviewer{font-weight:900;color:var(--navy)}.review-note{margin-top:30px;text-align:center;color:#667789}.review-cta{margin-top:18px;text-align:center}
 @media(max-width:800px){nav{display:none}.hero-grid,.about-grid,.contact-grid{grid-template-columns:1fr}.cards,.gallery-grid,.review-grid{grid-template-columns:1fr 1fr}.hero{padding:62px 0}.band .container,.footer-row{flex-direction:column;align-items:flex-start}}
 @media(max-width:520px){.cards,.gallery-grid,.review-grid{grid-template-columns:1fr}.top .container{flex-direction:column;gap:2px}.logo img{width:145px}.hero h1{font-size:2.7rem}section{padding:60px 0}}
@@ -60,11 +60,14 @@ footer{background:var(--navy);color:#c9d7e6;padding:30px 0}.footer-row{display:f
 <section class="gallery" id="work"><div class="container">
 <div class="section-head"><div class="eyebrow">Our Work</div><h2>Pictures of Our Work</h2><p>See examples of plumbing repairs, installations and remodeling work completed by RK Plumbing.</p></div>
 <div class="gallery-grid">
-<figure class="photo-card"><div class="photo-placeholder">Add Project Photo</div><figcaption>Recent Plumbing Project</figcaption></figure>
-<figure class="photo-card"><div class="photo-placeholder">Add Project Photo</div><figcaption>Installation Work</figcaption></figure>
-<figure class="photo-card"><div class="photo-placeholder">Add Project Photo</div><figcaption>Repair & Remodel</figcaption></figure>
+<figure class="photo-card"><img src="images/recent-work-1.jpg" alt="Water heater and plumbing setup"><figcaption>Water Heater Plumbing</figcaption></figure>
+<figure class="photo-card"><img src="images/recent-work-2.jpg" alt="Water heater and surrounding plumbing"><figcaption>Water Heater & Plumbing</figcaption></figure>
+<figure class="photo-card"><img src="images/recent-work-3.jpg" alt="Plumbing piping and valve assembly"><figcaption>Plumbing Installation</figcaption></figure>
+<figure class="photo-card"><img src="images/recent-work-4.jpg" alt="Basement plumbing piping"><figcaption>Basement Plumbing</figcaption></figure>
+<figure class="photo-card"><img src="images/recent-work-5.jpg" alt="Laundry area plumbing rough-in"><figcaption>Laundry Plumbing Rough-In</figcaption></figure>
+<figure class="photo-card"><img src="images/recent-work-6.jpg" alt="Basement drain and vent piping"><figcaption>Drain & Vent Piping</figcaption></figure>
 </div>
-<p class="review-note">Send us your project photos and we can add them to this gallery.</p>
+<p class="review-note">Recent work from RK Plumbing.</p>
 </div></section>
 
 <section class="reviews" id="reviews"><div class="container">
