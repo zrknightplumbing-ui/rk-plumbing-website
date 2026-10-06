@@ -25,45 +25,7 @@ footer{background:var(--navy);color:#c9d7e6;padding:30px 0}.footer-row{display:f
 @media(max-width:800px){nav{display:none}.hero-grid,.about-grid,.contact-grid{grid-template-columns:1fr}.cards,.gallery-grid,.review-grid{grid-template-columns:1fr 1fr}.hero{padding:62px 0}.band .container,.footer-row{flex-direction:column;align-items:flex-start}}
 @media(max-width:520px){.cards,.gallery-grid,.review-grid{grid-template-columns:1fr}.top .container{flex-direction:column;gap:2px}.logo img{width:145px}.hero h1{font-size:2.7rem}section{padding:60px 0}}
 </style>
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const form = document.getElementById('service-request-form');
-  const status = document.getElementById('form-status');
-  if (!form || !status) return;
 
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const button = form.querySelector('button[type="submit"]');
-    button.disabled = true;
-    button.textContent = 'Sending…';
-    status.textContent = '';
-    status.style.color = '';
-
-    try {
-      const response = await fetch('/api/request-service', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(Object.fromEntries(new FormData(form).entries()))
-      });
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok || !data.ok) {
-        throw new Error(data.message || 'Unable to send your request.');
-      }
-
-      form.reset();
-      status.textContent = data.message || 'Thanks! Your request was sent.';
-      status.style.color = '#0754a6';
-    } catch (error) {
-      status.textContent = error.message || 'Unable to send your request. Please call 603-710-9777.';
-      status.style.color = '#b42318';
-    } finally {
-      button.disabled = false;
-      button.textContent = 'Send Service Request';
-    }
-  });
-});
-</script>
 </head>
 <body>
 <div class="top"><div class="container"><span>RK Plumbing LLC • Newport, NH 03773</span><a href="tel:6037109777">Call 603-710-9777</a></div></div>
@@ -78,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <div class="eyebrow">Licensed Master Plumber • Newport, NH</div>
 <h1>Reliable plumbing work you can trust.</h1>
 <p>From small leaks to big repairs, installs and remodels, RK Plumbing LLC is here to help with dependable plumbing service for your home or business.</p>
-<div class="actions"><a class="btn btn-white" href="tel:6037109777">Call 603-710-9777</a><a class="btn btn-blue"  href="#contact">Request Service</a></div>
+<div class="actions"><a class="btn btn-white" href="tel:6037109777">Call 603-710-9777</a><a class="btn btn-blue" href="mailto:rkplumbingpro@gmail.com">Email RK Plumbing</a></div>
 </div>
 <div class="logo-panel"><img src="rk-plumbing-logo.png" alt="RK Plumbing LLC"><div class="badge">Licensed Master Plumber</div></div>
 </div></section>
@@ -126,23 +88,22 @@ document.addEventListener('DOMContentLoaded', () => {
 <section class="band"><div class="container"><div><h2>Need plumbing work?</h2><p>Call RK Plumbing LLC today to talk about your project or service needs.</p></div><a class="btn btn-white" href="tel:6037109777">603-710-9777</a></div></section>
 
 <section class="contact" id="contact"><div class="container">
-<div class="section-head"><div class="eyebrow">Contact RK Plumbing</div><h2>Request Service</h2><p>Newport, NH 03773 and surrounding communities.</p></div>
+<div class="section-head"><div class="eyebrow">Contact RK Plumbing</div><h2>Let's Talk About Your Project</h2><p>Call or email RK Plumbing to discuss your plumbing needs. Robert will talk with you about the project and, when appropriate, arrange a consultation or site visit before accepting the work.</p></div>
 <div class="contact-grid">
 <div class="contact-card">
-<div class="contact-row"><div class="contact-icon">☎</div><div><b>Phone</b><a href="tel:6037109777">603-710-9777</a></div></div>
-<div class="contact-row"><div class="contact-icon">✉</div><div><b>Email</b><a href="mailto:rkplumbingpro@gmail.com">rkplumbingpro@gmail.com</a></div></div>
-<div class="contact-row"><div class="contact-icon">⌖</div><div><b>Location</b><span>Newport, NH 03773</span></div></div>
+<div class="contact-row"><div class="contact-icon">☎</div><div><b>Call RK Plumbing</b><a href="tel:6037109777">603-710-9777</a></div></div>
+<div class="contact-row"><div class="contact-icon">✉</div><div><b>Email RK Plumbing</b><a href="mailto:rkplumbingpro@gmail.com">rkplumbingpro@gmail.com</a></div></div>
+<div class="contact-row"><div class="contact-icon">⌖</div><div><b>Serving</b><span>Newport, NH 03773 and surrounding communities.</span></div></div>
 </div>
-<div style="margin-top:24px;padding:18px;background:#f1f1f1;border-left:5px solid #999"><b>Follow RK Plumbing on Facebook</b><br><a href="https://www.facebook.com/profile.php?id=61577901551053" target="_blank" rel="noopener" style="text-decoration:underline;font-weight:800">Visit our Facebook page</a></div><div class="contact-card"><form id="service-request-form">
-<input id="name" name="name" required placeholder="Your name" autocomplete="name">
-<input id="phone" name="phone" required type="tel" placeholder="Phone number" autocomplete="tel">
-<input id="email" name="email" type="email" placeholder="Email address (optional)" autocomplete="email">
-<textarea id="message" name="message" required placeholder="Tell us what plumbing work you need"></textarea>
-<input name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;opacity:0;height:0;width:0">
-<button class="btn btn-blue" type="submit">Send Service Request</button>
-<div id="form-status" aria-live="polite" style="font-weight:800"></div>
-</form></div>
-</div></div></section>
+<div class="contact-card">
+<h3 style="margin-top:0;color:var(--navy)">How it works</h3>
+<p>Every project starts with a conversation. Call or email to explain what you need, and Robert can answer questions, discuss the project and determine the best next step.</p>
+<p>For projects that need a closer look, RK Plumbing can arrange a consultation or site visit before any work is accepted or scheduled.</p>
+<div class="actions" style="margin-top:20px"><a class="btn btn-blue" href="tel:6037109777">Call 603-710-9777</a><a class="btn btn-white" href="mailto:rkplumbingpro@gmail.com">Email RK Plumbing</a></div>
+</div>
+</div>
+<div style="margin-top:24px;padding:18px;background:#f1f1f1;border-left:5px solid #999"><b>Follow RK Plumbing on Facebook</b><br><a href="https://www.facebook.com/profile.php?id=61577901551053" target="_blank" rel="noopener" style="text-decoration:underline;font-weight:800">Visit our Facebook page</a></div>
+</div></section>
 </main>
 <footer><div class="container footer-row"><div><div class="footer-brand">RK Plumbing LLC</div><div>Newport, NH 03773</div></div><div><a href="tel:6037109777">603-710-9777</a> · <a href="mailto:rkplumbingpro@gmail.com">rkplumbingpro@gmail.com</a></div></div></footer>
 </body>
