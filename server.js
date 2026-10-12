@@ -100,10 +100,20 @@ async function initializeJobStorage() {
   try {
     await fs.access(JOBS_FILE);
   } catch {
-    await fs.writeFile(JOBS_FILE, '[]\\n', { flag: 'wx', mode: 0o600 });
+    await fs.writeFile(JOBS_FILE, '[]', { flag: 'wx', mode: 0o600 });
   }
-  // Fail fast if the existing schedule file is invalid; do not overwrite it.
-  const parsed = JSON.parse(await fs.readFile(JOBS_FILE, 'utf8'));
+  let raw = await fs.readFile(JOBS_FILE, 'utf8');
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    // Repair the empty file created by the earlier initializer only.
+    if (!raw.endsWith('\\n')) throw error;
+    raw = raw.slice(0, -2);
+    parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) throw new Error('Schedule storage is not a valid job list.');
+    await fs.writeFile(JOBS_FILE, JSON.stringify(parsed, null, 2), { mode: 0o600 });
+  }
   if (!Array.isArray(parsed)) throw new Error('Schedule storage is not a valid job list.');
 }
 
@@ -115,7 +125,7 @@ async function readJobsFile() {
 
 async function atomicWriteJobs(jobs) {
   const tempPath = JOBS_FILE + '.' + crypto.randomUUID() + '.tmp';
-  await fs.writeFile(tempPath, JSON.stringify(jobs, null, 2) + '\\n', { mode: 0o600 });
+  await fs.writeFile(tempPath, JSON.stringify(jobs, null, 2), { mode: 0o600 });
   await fs.rename(tempPath, JOBS_FILE);
 }
 
