@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Owner Login | RK Plumbing LLC</title>
+<style>
+:root{--navy:#0b2340;--blue:#0b72d9;--sky:#eef6ff;--orange:#f28b22;--line:#d7e2ee}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:linear-gradient(135deg,var(--navy),#0d3560 58%,#0754a6);font-family:Arial,Helvetica,sans-serif;color:#25364a;padding:22px}
+.panel{width:min(440px,100%);background:#fff;border-radius:16px;padding:32px;box-shadow:0 24px 70px #06172d70}
+.brand{display:flex;justify-content:center;margin-bottom:18px}.brand img{max-width:170px;height:84px;object-fit:contain}
+h1{margin:8px 0;color:var(--navy);font-size:1.8rem;text-align:center}p{color:#596b7e;text-align:center;margin:0 0 25px;line-height:1.5}
+label{font-weight:700;display:block;margin:15px 0 7px;color:var(--navy)}input{width:100%;padding:13px 14px;border:1px solid #b9c9d9;border-radius:7px;font:inherit}input:focus{outline:3px solid #0b72d926;border-color:var(--blue)}
+button{width:100%;border:0;border-radius:7px;background:var(--blue);color:#fff;font-size:1rem;font-weight:800;padding:14px;margin-top:22px;cursor:pointer}button:disabled{opacity:.65;cursor:wait}
+.status{min-height:24px;color:#b42318;font-weight:700;font-size:.93rem;margin-top:12px}.foot{text-align:center;border-top:1px solid var(--line);margin-top:20px;padding-top:18px;font-size:.9rem}.foot a{color:var(--blue);font-weight:700;text-decoration:none}
+</style>
+</head>
+<body>
+<main class="panel">
+<div class="brand"><img src="/rk-plumbing-logo.png" alt="RK Plumbing LLC"></div>
+<h1>Owner Login</h1>
+<p>Sign in to the private RK Plumbing owner area.</p>
+<form id="owner-login-form">
+<label for="email">Owner email</label><input id="email" name="email" type="email" autocomplete="username" required maxlength="254" placeholder="Owner email">
+<label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required maxlength="1024" placeholder="Password">
+<button type="submit">Sign In</button>
+<div class="status" id="status" role="status" aria-live="polite"></div>
+</form>
+<div class="foot"><a href="/">Return to RK Plumbing website</a></div>
+</main>
+<script>
+const form=document.getElementById('owner-login-form');
+const status=document.getElementById('status');
+form.addEventListener('submit',async event=>{
+ event.preventDefault();
+ const button=form.querySelector('button[type="submit"]');
+ button.disabled=true;button.textContent='Signing in…';status.textContent='';
+ try{
+  const response=await fetch('/api/owner/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:form.email.value,password:form.password.value})});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok||!data.ok)throw new Error(data.message||'Sign-in failed. Check your email and password.');
+  window.location.replace('/owner');
+ }catch(error){status.textContent=error.message||'Unable to sign in. Please try again.';}
+ finally{button.disabled=false;button.textContent='Sign In';}
+});
+</script>
+</body>
+</html>
