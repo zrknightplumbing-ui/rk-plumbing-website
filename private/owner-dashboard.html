@@ -283,6 +283,7 @@ function renderOwnerReviews(){
   return '<article class="owner-review"><div class="owner-review-top"><div><div class="owner-review-name">'+escapeHtml(review.name)+'</div><div class="owner-review-date">Submitted '+escapeHtml(niceReviewDate(review.createdAt))+'</div></div><span class="status '+escapeHtml(review.status)+'">'+escapeHtml(statusLabel)+'</span></div><div class="owner-review-stars" aria-label="'+escapeHtml(review.rating)+' out of 5 stars">'+stars+'</div><p class="owner-review-text">'+escapeHtml(review.review)+'</p><div class="owner-review-actions">'+actions+'</div></article>';
  }).join('');
 }
+loadOwnerReviews();
 document.querySelectorAll('.review-filter').forEach(button=>button.addEventListener('click',()=>{
  currentReviewFilter=button.dataset.reviewFilter;
  document.querySelectorAll('.review-filter').forEach(b=>b.classList.toggle('active',b===button));
