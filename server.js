@@ -1,6 +1,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const path = require('path');
+const fs = require('fs/promises');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -86,6 +87,90 @@ function setOwnerCookie(res, sessionId) {
 
 function clearOwnerCookie(res) {
   res.setHeader('Set-Cookie', OWNER_COOKIE + '=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0');
+}
+
+// Job data is stored on Railway's persistent volume (DATA_DIR=/data).
+const DATA_DIR = process.env.DATA_DIR || '/tmp/rk-plumbing-schedule-data';
+const JOBS_FILE = path.join(DATA_DIR, 'jobs.json');
+let jobWriteQueue = Promise.resolve();
+const JOB_STATUSES = new Set(['scheduled', 'confirmed', 'in-progress', 'completed', 'cancelled']);
+
+async function initializeJobStorage() {
+  await fs.mkdir(DATA_DIR, { recursive: true });
+  try {
+    await fs.access(JOBS_FILE);
+  } catch {
+    await fs.writeFile(JOBS_FILE, '[]\\n', { flag: 'wx', mode: 0o600 });
+  }
+  // Fail fast if the existing schedule file is invalid; do not overwrite it.
+  const parsed = JSON.parse(await fs.readFile(JOBS_FILE, 'utf8'));
+  if (!Array.isArray(parsed)) throw new Error('Schedule storage is not a valid job list.');
+}
+
+async function readJobsFile() {
+  const parsed = JSON.parse(await fs.readFile(JOBS_FILE, 'utf8'));
+  if (!Array.isArray(parsed)) throw new Error('Schedule storage is not a valid job list.');
+  return parsed;
+}
+
+async function atomicWriteJobs(jobs) {
+  const tempPath = JOBS_FILE + '.' + crypto.randomUUID() + '.tmp';
+  await fs.writeFile(tempPath, JSON.stringify(jobs, null, 2) + '\\n', { mode: 0o600 });
+  await fs.rename(tempPath, JOBS_FILE);
+}
+
+function mutateJobs(mutator) {
+  const operation = jobWriteQueue.then(async () => {
+    const jobs = await readJobsFile();
+    const result = await mutator(jobs);
+    await atomicWriteJobs(jobs);
+    return result;
+  });
+  jobWriteQueue = operation.catch(() => {});
+  return operation;
+}
+
+function validateJobInput(input, existing = {}) {
+  const title = clean(input.title, 120);
+  const customerName = clean(input.customerName, 120);
+  const date = clean(input.date, 10);
+  const time = clean(input.time, 5);
+  const phone = clean(input.phone, 40);
+  const email = clean(input.email, 160);
+  const address = clean(input.address, 240);
+  const notes = clean(input.notes, 3000);
+  const status = clean(input.status || existing.status || 'scheduled', 24);
+  const durationValue = Number(input.durationMinutes ?? existing.durationMinutes ?? 60);
+
+  if (!title || !customerName || !date || !time) {
+    return { error: 'Enter the work description, customer name, date, and start time.' };
+  }
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || new Date(date + 'T00:00:00Z').toISOString().slice(0, 10) !== date) {
+    return { error: 'Choose a valid work date.' };
+  }
+  if (!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(time)) {
+    return { error: 'Choose a valid start time.' };
+  }
+  if (email && !isValidEmail(email)) return { error: 'Enter a valid customer email address.' };
+  if (!JOB_STATUSES.has(status)) return { error: 'Choose a valid job status.' };
+  if (!Number.isInteger(durationValue) || durationValue < 15 || durationValue > 720) {
+    return { error: 'Estimated duration must be between 15 minutes and 12 hours.' };
+  }
+
+  return {
+    job: {
+      title, customerName, date, time, phone, email, address, notes,
+      status,
+      durationMinutes: durationValue,
+      updatedAt: new Date().toISOString()
+    }
+  };
+}
+
+function requireOwnerApi(req, res) {
+  if (getOwnerSessionId(req)) return true;
+  res.status(401).json({ ok: false, message: 'Please sign in to the owner area again.' });
+  return false;
 }
 
 async function sendSms(body) {
@@ -197,6 +282,72 @@ app.post('/api/owner/logout', (req, res) => {
   clearOwnerCookie(res);
   res.setHeader('Cache-Control', 'no-store');
   return res.json({ ok: true });
+});
+
+app.get('/api/owner/jobs', async (req, res) => {
+  if (!requireOwnerApi(req, res)) return;
+  try {
+    const jobs = await readJobsFile();
+    jobs.sort((a, b) => (a.date + 'T' + a.time).localeCompare(b.date + 'T' + b.time));
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ ok: true, jobs });
+  } catch (error) {
+    console.error('Unable to read schedule:', error.message);
+    return res.status(500).json({ ok: false, message: 'Could not load the work schedule. Please try again.' });
+  }
+});
+
+app.post('/api/owner/jobs', async (req, res) => {
+  if (!requireOwnerApi(req, res)) return;
+  const validated = validateJobInput(req.body || {});
+  if (validated.error) return res.status(400).json({ ok: false, message: validated.error });
+  try {
+    const job = await mutateJobs(jobs => {
+      const created = { id: crypto.randomUUID(), createdAt: new Date().toISOString(), ...validated.job };
+      jobs.push(created);
+      return created;
+    });
+    return res.status(201).json({ ok: true, job, message: 'Work has been added to your schedule.' });
+  } catch (error) {
+    console.error('Unable to save scheduled job:', error.message);
+    return res.status(500).json({ ok: false, message: 'Could not save this job. Please try again.' });
+  }
+});
+
+app.put('/api/owner/jobs/:id', async (req, res) => {
+  if (!requireOwnerApi(req, res)) return;
+  const validated = validateJobInput(req.body || {});
+  if (validated.error) return res.status(400).json({ ok: false, message: validated.error });
+  try {
+    const result = await mutateJobs(jobs => {
+      const index = jobs.findIndex(job => job.id === req.params.id);
+      if (index < 0) return null;
+      jobs[index] = { ...jobs[index], ...validated.job, id: jobs[index].id, createdAt: jobs[index].createdAt };
+      return jobs[index];
+    });
+    if (!result) return res.status(404).json({ ok: false, message: 'That scheduled job could not be found.' });
+    return res.json({ ok: true, job: result, message: 'Schedule updated.' });
+  } catch (error) {
+    console.error('Unable to update scheduled job:', error.message);
+    return res.status(500).json({ ok: false, message: 'Could not update this job. Please try again.' });
+  }
+});
+
+app.delete('/api/owner/jobs/:id', async (req, res) => {
+  if (!requireOwnerApi(req, res)) return;
+  try {
+    const removed = await mutateJobs(jobs => {
+      const index = jobs.findIndex(job => job.id === req.params.id);
+      if (index < 0) return false;
+      jobs.splice(index, 1);
+      return true;
+    });
+    if (!removed) return res.status(404).json({ ok: false, message: 'That scheduled job could not be found.' });
+    return res.json({ ok: true, message: 'Scheduled job deleted.' });
+  } catch (error) {
+    console.error('Unable to delete scheduled job:', error.message);
+    return res.status(500).json({ ok: false, message: 'Could not delete this job. Please try again.' });
+  }
 });
 
 app.get('/api/health', (req, res) => {
@@ -323,6 +474,14 @@ app.use((req, res, next) => {
   res.sendFile(require('path').join(__dirname, 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log('RK Plumbing website listening on port ' + PORT);
-});
+initializeJobStorage()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log('RK Plumbing website listening on port ' + PORT);
+      console.log('Owner work schedule storage ready at ' + DATA_DIR);
+    });
+  })
+  .catch(error => {
+    console.error('Failed to initialize work schedule storage:', error);
+    process.exit(1);
+  });
