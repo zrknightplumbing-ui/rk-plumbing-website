@@ -8,7 +8,7 @@
 <style>
 :root{--navy:#0b2340;--blue:#0b72d9;--blue-dark:#0754a6;--sky:#eef6ff;--orange:#f28b22;--charcoal:#263648;--gray:#5d6b79;--light:#f4f8fc;--white:#fff;--line:#d7e2ee}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:Arial,Helvetica,sans-serif;color:var(--charcoal);line-height:1.65;background:#fff}a{text-decoration:none;color:inherit}.container{width:min(1120px,92%);margin:auto}
-.top{background:var(--navy);color:#fff;font-size:.9rem}.top .container{display:flex;justify-content:space-between;gap:20px;padding:9px 0}.top a{text-decoration:underline;color:#fff}
+.top{background:var(--navy);color:#fff;font-size:.9rem}.top .container{display:flex;justify-content:space-between;gap:20px;padding:9px 0}.top a{text-decoration:underline;color:#fff}.top .owner-login-link{display:inline-flex;align-items:center;justify-content:center;background:var(--orange);padding:6px 12px;border-radius:5px;text-decoration:none;font-weight:800;color:#fff;white-space:nowrap}.top .owner-login-link:hover{filter:brightness(.95)}
 header{position:sticky;top:0;z-index:20;background:#fff;border-bottom:3px solid var(--blue)}.nav{min-height:82px;display:flex;align-items:center;justify-content:space-between;gap:20px}
 .logo{display:block}.logo img{display:block;width:180px;height:72px;object-fit:contain}
 nav{display:flex;align-items:center;gap:25px;font-weight:700;color:var(--navy)}nav a:hover{color:var(--blue)}.btn{display:inline-flex;align-items:center;justify-content:center;padding:13px 21px;border-radius:6px;font-weight:800;border:2px solid var(--blue);transition:.2s}.btn-blue{background:var(--blue);color:#fff}.btn-orange{background:var(--orange);border-color:var(--orange);color:#fff}.btn-white{background:#fff;color:var(--navy)}.btn:hover{transform:translateY(-1px);filter:brightness(.97)}
@@ -28,7 +28,7 @@ footer{background:var(--navy);color:#c9d7e6;padding:30px 0}.footer-row{display:f
 
 </head>
 <body onload="if(!location.hash){window.scrollTo(0,0)}">
-<div class="top"><div class="container"><span>RK Plumbing LLC • Newport, NH 03773</span><a href="tel:6037109777">Call 603-710-9777</a></div></div>
+<div class="top"><div class="container"><span>RK Plumbing LLC • Newport, NH 03773</span><a href="tel:6037109777">Call 603-710-9777</a><a class="owner-login-link" href="/owner-login">Owner Login</a></div></div>
 <header><div class="container nav">
 <a class="logo" href="#"><img src="rk-plumbing-logo.png" alt="RK Plumbing LLC logo"></a>
 <nav><a href="#services">Services</a><a href="#work">Pictures</a><a href="#reviews">Reviews</a><a href="#about">About</a><a href="#contact">Contact</a><a href="https://www.facebook.com/profile.php?id=61577901551053" target="_blank" rel="noopener">Facebook</a><a class="btn btn-blue" href="tel:6037109777">Call Now</a></nav>
