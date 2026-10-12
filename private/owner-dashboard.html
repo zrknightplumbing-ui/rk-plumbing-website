@@ -13,6 +13,30 @@ button,.button{display:inline-flex;align-items:center;justify-content:center;bor
 main{padding:36px 0 52px}.eyebrow{text-transform:uppercase;letter-spacing:.12em;font-weight:900;font-size:.78rem;color:var(--blue)}h1{font-size:clamp(2rem,5vw,3rem);color:var(--navy);line-height:1.1;margin:8px 0}h2{color:var(--navy);margin:0 0 6px;font-size:1.35rem}h3{color:var(--navy);margin:0}.intro{color:var(--muted);max-width:780px;margin:0 0 24px}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:25px 0}.stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:20px;box-shadow:var(--shadow)}.stat span{display:block;color:var(--muted);font-weight:700;font-size:.94rem}.stat strong{display:block;color:var(--navy);font-size:2rem;line-height:1.2;margin-top:5px}
 .layout{display:grid;grid-template-columns:minmax(300px,.85fr) minmax(0,1.4fr);gap:20px;align-items:start}.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:23px;box-shadow:var(--shadow)}.card-heading{display:flex;justify-content:space-between;gap:16px;align-items:start;margin-bottom:18px}.hint{margin:0;color:var(--muted);font-size:.92rem}
+[hidden]{display:none!important}
+.dashboard-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:25px 0 20px;border-bottom:1px solid var(--line);padding-bottom:12px}
+.tab-button{background:#fff;color:var(--navy);border:1px solid var(--line);padding:10px 14px}
+.tab-button.active{background:var(--navy);border-color:var(--navy);color:#fff}
+.tab-badge{display:inline-flex;min-width:22px;height:22px;align-items:center;justify-content:center;background:var(--orange);color:#fff;border-radius:99px;font-size:.75rem;margin-left:4px;padding:0 6px}
+.review-filters{display:flex;flex-wrap:wrap;gap:8px;margin:15px 0}
+.review-filter{background:#f4f8fc;color:var(--navy);border:1px solid var(--line);padding:8px 12px;font-size:.88rem}
+.review-filter.active{background:var(--blue);color:white;border-color:var(--blue)}
+.owner-review-list{display:grid;gap:14px;margin-top:14px}
+.owner-review{border:1px solid var(--line);border-radius:10px;padding:18px;background:#fff}
+.owner-review-top{display:flex;justify-content:space-between;gap:12px;align-items:start}
+.owner-review-name{font-weight:900;color:var(--navy);font-size:1.08rem}
+.owner-review-stars{color:var(--orange);letter-spacing:2px;font-size:1.1rem}
+.owner-review-date{color:var(--muted);font-size:.86rem;margin-top:3px}
+.owner-review-text{white-space:pre-wrap;overflow-wrap:anywhere;margin:13px 0}
+.owner-review-actions{display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid #e7edf3;padding-top:13px}
+.owner-review-actions button{font-size:.88rem;padding:8px 12px}
+.owner-review-actions .approve{background:var(--green)}
+.owner-review-actions .decline{background:#fff;color:var(--red);border:1px solid #e7b7b7}
+.owner-review-actions .reopen{background:#f4f8fc;color:var(--navy);border:1px solid var(--line)}
+.password-card{max-width:640px}
+.password-form{margin-top:20px}
+.password-form small{color:var(--muted);display:block;margin-top:5px}
+
 form{display:grid;gap:13px}.fields-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field label{display:block;font-weight:800;color:var(--navy);font-size:.9rem;margin-bottom:5px}.field input,.field select,.field textarea,.toolbar input,.toolbar select{width:100%;padding:11px 12px;border:1px solid #bccbda;border-radius:7px;background:white;font:inherit;color:var(--ink)}.field textarea{min-height:95px;resize:vertical}.field input:focus,.field select:focus,.field textarea:focus,.toolbar input:focus,.toolbar select:focus{outline:3px solid #0b72d926;border-color:var(--blue)}.form-actions{display:flex;gap:10px;flex-wrap:wrap}.form-actions button{flex:1}.form-status{min-height:22px;color:var(--green);font-weight:700;font-size:.92rem}.form-status.error{color:var(--red)}
 .toolbar{display:grid;grid-template-columns:minmax(160px,1fr) 170px;gap:10px;margin-bottom:16px}.job-list{display:grid;gap:12px}.job-card{border:1px solid var(--line);border-left:5px solid var(--blue);border-radius:10px;padding:16px;background:#fff}.job-card.is-overdue{border-left-color:var(--red)}.job-card.is-completed{border-left-color:var(--green);background:#fcfefd}.job-top{display:flex;justify-content:space-between;gap:12px;align-items:start}.job-title{font-size:1.08rem;font-weight:900;color:var(--navy);line-height:1.25}.job-subtitle{color:var(--muted);font-size:.94rem;margin-top:3px}.status{display:inline-flex;align-items:center;border-radius:999px;padding:4px 9px;font-weight:800;font-size:.77rem;white-space:nowrap;background:#eef2f6;color:#44566a}.status.confirmed{background:#e4f3ff;color:#0754a6}.status.in-progress{background:#fff0db;color:#8a4c00}.status.completed{background:#e4f6eb;color:#137547}.status.cancelled{background:#f3e9e9;color:#8a2828}.job-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-top:13px;font-size:.92rem}.meta-label{display:block;text-transform:uppercase;letter-spacing:.05em;font-size:.7rem;color:var(--muted);font-weight:900}.job-notes{margin:13px 0 0;padding-top:12px;border-top:1px solid #e7edf3;white-space:pre-wrap;overflow-wrap:anywhere}.job-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:15px}.job-actions button{font-size:.84rem;padding:8px 11px}.job-actions .danger{background:#fff;color:var(--red);border:1px solid #e7b7b7}.late-label{color:var(--red);font-weight:900;font-size:.8rem;margin-top:6px}.empty{background:var(--sky);border:1px dashed #b9cfe4;border-radius:10px;padding:28px;text-align:center;color:var(--muted)}.empty strong{display:block;color:var(--navy);margin-bottom:4px}.list-head{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-bottom:12px}.list-head p{margin:0;color:var(--muted);font-size:.9rem}footer{padding:22px 0;color:#657789}footer a{color:var(--blue-dark);font-weight:700}
 @media(max-width:850px){.layout{grid-template-columns:1fr}.form-card{order:0}.list-card{order:1}}
@@ -25,6 +49,12 @@ form{display:grid;gap:13px}.fields-2{display:grid;grid-template-columns:1fr 1fr;
 <div class="eyebrow">Private owner area</div>
 <h1>Work Schedule</h1>
 <p class="intro">Keep jobs, appointments, customer details, and next steps in one place. Changes are saved to the site's persistent Railway storage.</p>
+<nav class="dashboard-tabs" aria-label="Owner tools">
+<button type="button" class="tab-button active" data-tab="schedule" aria-selected="true">Work Schedule</button>
+<button type="button" class="tab-button" data-tab="reviews" aria-selected="false">Review Approvals <span id="pending-badge" class="tab-badge">0</span></button>
+<button type="button" class="tab-button" data-tab="password" aria-selected="false">Change Password</button>
+</nav>
+<section id="schedule-panel" class="tab-panel">
 <div class="stats">
 <div class="stat"><span>Today's jobs</span><strong id="stat-today">—</strong></div>
 <div class="stat"><span>Next 7 days</span><strong id="stat-week">—</strong></div>
@@ -59,6 +89,33 @@ form{display:grid;gap:13px}.fields-2{display:grid;grid-template-columns:1fr 1fr;
 <div class="job-list" id="job-list"><div class="empty">Loading schedule…</div></div>
 </section>
 </div>
+</section>
+<section id="reviews-panel" class="tab-panel" hidden>
+<div class="card">
+<div class="card-heading"><div><h2>Customer Review Approvals</h2><p class="hint">New reviews stay private until you approve them. Approved reviews appear on the public website.</p></div><button id="refresh-reviews" type="button" class="secondary">Refresh</button></div>
+<div class="review-filters" role="group" aria-label="Filter reviews">
+<button type="button" class="review-filter active" data-review-filter="pending">Pending <span id="review-pending-count">0</span></button>
+<button type="button" class="review-filter" data-review-filter="approved">Approved</button>
+<button type="button" class="review-filter" data-review-filter="declined">Declined</button>
+<button type="button" class="review-filter" data-review-filter="all">All reviews</button>
+</div>
+<div id="review-status" class="form-status" role="status" aria-live="polite"></div>
+<div id="owner-review-list" class="owner-review-list"><div class="empty">Loading customer reviews…</div></div>
+</div>
+</section>
+<section id="password-panel" class="tab-panel" hidden>
+<div class="card password-card">
+<h2>Change Owner Password</h2>
+<p class="hint">Change the password used to sign in to this private dashboard. Use at least 12 characters. The new password is stored as a secure hash on Railway's persistent storage.</p>
+<form id="change-password-form" class="password-form">
+<div class="field"><label for="current-password">Current password</label><input id="current-password" name="currentPassword" type="password" autocomplete="current-password" required maxlength="1024"></div>
+<div class="field"><label for="new-password">New password</label><input id="new-password" name="newPassword" type="password" autocomplete="new-password" minlength="12" required maxlength="1024"><small>At least 12 characters. Avoid using a password from another account.</small></div>
+<div class="field"><label for="confirm-password">Confirm new password</label><input id="confirm-password" name="confirmPassword" type="password" autocomplete="new-password" minlength="12" required maxlength="1024"></div>
+<div class="form-actions"><button type="submit" id="change-password-submit">Update password</button></div>
+<div id="password-status" class="form-status" role="status" aria-live="polite"></div>
+</form>
+</div>
+</section>
 </main>
 <footer><div class="container">RK Plumbing LLC · Newport, NH 03773 · <a href="tel:6037109777">603-710-9777</a> · <a href="/">Public website</a></div></footer>
 <script>
@@ -177,6 +234,95 @@ jobList.addEventListener('click',async event=>{
 });
 document.getElementById('logout').addEventListener('click',async()=>{try{await fetch('/api/owner/logout',{method:'POST'});}finally{window.location.replace('/owner-login');}});
 loadJobs();
+
+// Switch between owner dashboard tools without leaving the protected page.
+const dashboardTabs=[...document.querySelectorAll('.tab-button')];
+const panels={schedule:document.getElementById('schedule-panel'),reviews:document.getElementById('reviews-panel'),password:document.getElementById('password-panel')};
+let reviewItems=[];
+let currentReviewFilter='pending';
+function showTab(name){
+ for(const button of dashboardTabs){const active=button.dataset.tab===name;button.classList.toggle('active',active);button.setAttribute('aria-selected',String(active));}
+ for(const [key,panel] of Object.entries(panels))panel.hidden=key!==name;
+ if(name==='reviews')loadOwnerReviews();
+}
+dashboardTabs.forEach(button=>button.addEventListener('click',()=>showTab(button.dataset.tab)));
+
+function setReviewMessage(message,error=false){
+ const element=document.getElementById('review-status');
+ element.textContent=message;
+ element.classList.toggle('error',error);
+}
+function niceReviewDate(value){
+ const date=new Date(value);
+ return Number.isNaN(date.getTime())?'':date.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});
+}
+async function loadOwnerReviews(){
+ const list=document.getElementById('owner-review-list');
+ list.innerHTML='<div class="empty">Loading customer reviews…</div>';
+ try{
+  const data=await api('/api/owner/reviews');
+  reviewItems=Array.isArray(data.reviews)?data.reviews:[];
+  document.getElementById('pending-badge').textContent=reviewItems.filter(r=>r.status==='pending').length;
+  document.getElementById('review-pending-count').textContent=reviewItems.filter(r=>r.status==='pending').length;
+  renderOwnerReviews();
+ }catch(error){list.innerHTML='<div class="empty"><strong>Could not load reviews</strong>'+escapeHtml(error.message)+'</div>';}
+}
+function renderOwnerReviews(){
+ const list=document.getElementById('owner-review-list');
+ const items=reviewItems.filter(r=>currentReviewFilter==='all'||r.status===currentReviewFilter);
+ if(!items.length){
+  const wording=currentReviewFilter==='pending'?'There are no reviews waiting for approval.':currentReviewFilter==='approved'?'No approved reviews yet.':currentReviewFilter==='declined'?'No declined reviews.':'No reviews have been submitted yet.';
+  list.innerHTML='<div class="empty"><strong>Nothing to show</strong>'+escapeHtml(wording)+'</div>';return;
+ }
+ list.innerHTML=items.map(review=>{
+  const stars='★'.repeat(Math.max(0,Math.min(5,Number(review.rating)||0)))+'☆'.repeat(5-Math.max(0,Math.min(5,Number(review.rating)||0)));
+  const statusLabel={pending:'Pending review',approved:'Approved · public',declined:'Declined · hidden'}[review.status]||review.status;
+  let actions='';
+  if(review.status==='pending')actions='<button type="button" class="approve" data-review-action="approved" data-id="'+escapeHtml(review.id)+'">Approve & publish</button><button type="button" class="decline" data-review-action="declined" data-id="'+escapeHtml(review.id)+'">Decline</button>';
+  else actions='<button type="button" class="reopen" data-review-action="pending" data-id="'+escapeHtml(review.id)+'">Move to pending</button>'+(review.status==='approved'?'<button type="button" class="decline" data-review-action="declined" data-id="'+escapeHtml(review.id)+'">Hide review</button>':'<button type="button" class="approve" data-review-action="approved" data-id="'+escapeHtml(review.id)+'">Approve & publish</button>');
+  return '<article class="owner-review"><div class="owner-review-top"><div><div class="owner-review-name">'+escapeHtml(review.name)+'</div><div class="owner-review-date">Submitted '+escapeHtml(niceReviewDate(review.createdAt))+'</div></div><span class="status '+escapeHtml(review.status)+'">'+escapeHtml(statusLabel)+'</span></div><div class="owner-review-stars" aria-label="'+escapeHtml(review.rating)+' out of 5 stars">'+stars+'</div><p class="owner-review-text">'+escapeHtml(review.review)+'</p><div class="owner-review-actions">'+actions+'</div></article>';
+ }).join('');
+}
+document.querySelectorAll('.review-filter').forEach(button=>button.addEventListener('click',()=>{
+ currentReviewFilter=button.dataset.reviewFilter;
+ document.querySelectorAll('.review-filter').forEach(b=>b.classList.toggle('active',b===button));
+ renderOwnerReviews();
+}));
+document.getElementById('refresh-reviews').addEventListener('click',loadOwnerReviews);
+document.getElementById('owner-review-list').addEventListener('click',async event=>{
+ const button=event.target.closest('button[data-review-action]');if(!button)return;
+ const review=reviewItems.find(item=>item.id===button.dataset.id);if(!review)return;
+ const status=button.dataset.reviewAction;
+ if(status==='declined'&&!confirm('Decline this review and keep it off the public website?'))return;
+ if(status==='approved'&&!confirm('Approve and publish this review on the public website?'))return;
+ button.disabled=true;setReviewMessage('');
+ try{
+  const data=await api('/api/owner/reviews/'+encodeURIComponent(review.id),{method:'PATCH',body:JSON.stringify({status})});
+  setReviewMessage(data.message||'Review updated.');
+  await loadOwnerReviews();
+ }catch(error){setReviewMessage(error.message,true);}
+ finally{button.disabled=false;}
+});
+
+const passwordForm=document.getElementById('change-password-form');
+passwordForm.addEventListener('submit',async event=>{
+ event.preventDefault();
+ const status=document.getElementById('password-status');
+ const button=document.getElementById('change-password-submit');
+ const currentPassword=document.getElementById('current-password').value;
+ const newPassword=document.getElementById('new-password').value;
+ const confirmPassword=document.getElementById('confirm-password').value;
+ status.textContent='';status.classList.remove('error');
+ if(newPassword.length<12){status.textContent='Use at least 12 characters for the new password.';status.classList.add('error');return;}
+ if(newPassword!==confirmPassword){status.textContent='The new passwords do not match.';status.classList.add('error');return;}
+ button.disabled=true;button.textContent='Updating…';
+ try{
+  const data=await api('/api/owner/password',{method:'POST',body:JSON.stringify({currentPassword,newPassword})});
+  passwordForm.reset();status.textContent=data.message||'Password updated.';
+ }catch(error){status.textContent=error.message;status.classList.add('error');}
+ finally{button.disabled=false;button.textContent='Update password';}
+});
+
 </script>
 </body>
 </html>
