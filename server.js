@@ -33,7 +33,8 @@ function isValidEmail(value) {
 const OWNER_COOKIE = 'rk_owner_session';
 const OWNER_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const OWNER_EMAIL = (process.env.OWNER_EMAIL || '').trim().toLowerCase();
-const OWNER_PASSWORD = process.env.OWNER_PASSWORD || '';
+const OWNER_PASSWORD_BOOTSTRAP = process.env.OWNER_PASSWORD || '';
+let ownerPasswordHash = null;
 const OWNER_SESSION_SECRET = process.env.OWNER_SESSION_SECRET || '';
 const ownerSessions = new Map();
 const ownerLoginAttempts = new Map();
@@ -46,8 +47,20 @@ function safeEqual(a, b) {
   return left.length === right.length && crypto.timingSafeEqual(left, right);
 }
 
+function makePasswordRecord(password) {
+  const salt = crypto.randomBytes(16).toString('base64url');
+  const hash = crypto.scryptSync(String(password), salt, 64).toString('hex');
+  return { salt, hash, updatedAt: new Date().toISOString() };
+}
+
+function verifyOwnerPassword(password) {
+  if (!ownerPasswordHash || !ownerPasswordHash.salt || !ownerPasswordHash.hash) return false;
+  const derived = crypto.scryptSync(String(password), ownerPasswordHash.salt, 64).toString('hex');
+  return safeEqual(derived, ownerPasswordHash.hash);
+}
+
 function ownerAuthConfigured() {
-  return Boolean(OWNER_EMAIL && OWNER_PASSWORD && OWNER_SESSION_SECRET);
+  return Boolean(OWNER_EMAIL && ownerPasswordHash && OWNER_SESSION_SECRET);
 }
 
 function signOwnerSession(sessionId) {
@@ -92,7 +105,11 @@ function clearOwnerCookie(res) {
 // Job data is stored on Railway's persistent volume (DATA_DIR=/data).
 const DATA_DIR = process.env.DATA_DIR || '/tmp/rk-plumbing-schedule-data';
 const JOBS_FILE = path.join(DATA_DIR, 'jobs.json');
+const REVIEWS_FILE = path.join(DATA_DIR, 'reviews.json');
+const OWNER_PASSWORD_FILE = path.join(DATA_DIR, 'owner-password.json');
 let jobWriteQueue = Promise.resolve();
+let reviewWriteQueue = Promise.resolve();
+const publicReviewAttempts = new Map();
 const JOB_STATUSES = new Set(['scheduled', 'confirmed', 'in-progress', 'completed', 'cancelled']);
 
 async function initializeJobStorage() {
@@ -121,6 +138,56 @@ async function readJobsFile() {
   const parsed = JSON.parse(await fs.readFile(JOBS_FILE, 'utf8'));
   if (!Array.isArray(parsed)) throw new Error('Schedule storage is not a valid job list.');
   return parsed;
+}
+
+async function readReviewsFile() {
+  const parsed = JSON.parse(await fs.readFile(REVIEWS_FILE, 'utf8'));
+  if (!Array.isArray(parsed)) throw new Error('Review storage is not a valid review list.');
+  return parsed;
+}
+
+async function atomicWriteFile(filePath, value) {
+  const tempPath = filePath + '.' + crypto.randomUUID() + '.tmp';
+  await fs.writeFile(tempPath, JSON.stringify(value, null, 2), { mode: 0o600 });
+  await fs.rename(tempPath, filePath);
+}
+
+async function saveOwnerPasswordRecord(record) {
+  await atomicWriteFile(OWNER_PASSWORD_FILE, record);
+}
+
+function mutateReviews(mutator) {
+  const operation = reviewWriteQueue.then(async () => {
+    const reviews = await readReviewsFile();
+    const result = await mutator(reviews);
+    await atomicWriteFile(REVIEWS_FILE, reviews);
+    return result;
+  });
+  reviewWriteQueue = operation.catch(() => {});
+  return operation;
+}
+
+async function initializeReviewAndPasswordStorage() {
+  try {
+    await fs.access(REVIEWS_FILE);
+  } catch {
+    await fs.writeFile(REVIEWS_FILE, '[]', { flag: 'wx', mode: 0o600 });
+  }
+  const reviews = await readReviewsFile();
+  if (!Array.isArray(reviews)) throw new Error('Review storage is not a valid review list.');
+
+  try {
+    const record = JSON.parse(await fs.readFile(OWNER_PASSWORD_FILE, 'utf8'));
+    if (!record || typeof record.salt !== 'string' || typeof record.hash !== 'string' || !/^[a-f0-9]{128}$/i.test(record.hash)) {
+      throw new Error('Owner password storage is not valid.');
+    }
+    ownerPasswordHash = record;
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    if (!OWNER_PASSWORD_BOOTSTRAP) throw new Error('OWNER_PASSWORD is not set; cannot initialize owner password.');
+    ownerPasswordHash = makePasswordRecord(OWNER_PASSWORD_BOOTSTRAP);
+    await saveOwnerPasswordRecord(ownerPasswordHash);
+  }
 }
 
 async function atomicWriteJobs(jobs) {
@@ -273,7 +340,7 @@ app.post('/api/owner/login', (req, res) => {
 
   const email = clean(req.body.email, 254).toLowerCase();
   const password = String(req.body.password ?? '').slice(0, 1024);
-  const valid = safeEqual(email, OWNER_EMAIL) && safeEqual(password, OWNER_PASSWORD);
+  const valid = safeEqual(email, OWNER_EMAIL) && verifyOwnerPassword(password);
   if (!valid) {
     attempts.push(now);
     ownerLoginAttempts.set(ip, attempts);
@@ -289,6 +356,35 @@ app.post('/api/owner/login', (req, res) => {
   setOwnerCookie(res, sessionId);
   res.setHeader('Cache-Control', 'no-store');
   return res.json({ ok: true });
+});
+
+app.post('/api/owner/password', async (req, res) => {
+  if (!requireOwnerApi(req, res)) return;
+  const currentPassword = String(req.body.currentPassword ?? '').slice(0, 1024);
+  const newPassword = String(req.body.newPassword ?? '').slice(0, 1024);
+  if (!verifyOwnerPassword(currentPassword)) {
+    return res.status(401).json({ ok: false, message: 'Your current password is incorrect.' });
+  }
+  if (newPassword.length < 12) {
+    return res.status(400).json({ ok: false, message: 'Use a new password with at least 12 characters.' });
+  }
+  if (newPassword === currentPassword) {
+    return res.status(400).json({ ok: false, message: 'Choose a password different from your current password.' });
+  }
+  try {
+    const record = makePasswordRecord(newPassword);
+    await saveOwnerPasswordRecord(record);
+    ownerPasswordHash = record;
+    ownerSessions.clear();
+    const sessionId = crypto.randomBytes(32).toString('base64url');
+    ownerSessions.set(sessionId, Date.now() + OWNER_SESSION_TTL_MS);
+    setOwnerCookie(res, sessionId);
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ ok: true, message: 'Password changed successfully.' });
+  } catch (error) {
+    console.error('Unable to update owner password:', error.message);
+    return res.status(500).json({ ok: false, message: 'Password could not be changed. Please try again.' });
+  }
 });
 
 app.post('/api/owner/logout', (req, res) => {
@@ -362,6 +458,97 @@ app.delete('/api/owner/jobs/:id', async (req, res) => {
   } catch (error) {
     console.error('Unable to delete scheduled job:', error.message);
     return res.status(500).json({ ok: false, message: 'Could not delete this job. Please try again.' });
+  }
+});
+
+app.get('/api/reviews/approved', async (req, res) => {
+  try {
+    const reviews = await readReviewsFile();
+    const approved = reviews
+      .filter(review => review.status === 'approved')
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+      .map(({ id, name, rating, review, createdAt }) => ({ id, name, rating, review, createdAt }));
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ ok: true, reviews: approved });
+  } catch (error) {
+    console.error('Unable to load public reviews:', error.message);
+    return res.status(500).json({ ok: false, message: 'Reviews are temporarily unavailable.' });
+  }
+});
+
+app.post('/api/reviews', async (req, res) => {
+  try {
+    const ip = getClientIp(req);
+    const now = Date.now();
+    const attempts = (publicReviewAttempts.get(ip) || []).filter(ts => now - ts < 60 * 60 * 1000);
+    if (attempts.length >= 3) {
+      publicReviewAttempts.set(ip, attempts);
+      return res.status(429).json({ ok: false, message: 'Too many review submissions. Please try again later.' });
+    }
+    // Honeypot field; legitimate visitors leave it empty.
+    if (clean(req.body.website, 100)) return res.json({ ok: true, message: 'Thank you for your feedback.' });
+
+    const name = clean(req.body.name, 100);
+    const reviewText = clean(req.body.review, 4000);
+    const rating = Number(req.body.rating);
+    if (!name || reviewText.length < 10 || !Number.isInteger(rating) || rating < 1 || rating > 5) {
+      return res.status(400).json({ ok: false, message: 'Please enter your name, choose a star rating, and write a review of at least 10 characters.' });
+    }
+
+    const created = await mutateReviews(reviews => {
+      const review = {
+        id: crypto.randomUUID(),
+        name,
+        rating,
+        review: reviewText,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      reviews.push(review);
+      return review;
+    });
+    attempts.push(now);
+    publicReviewAttempts.set(ip, attempts);
+    return res.status(201).json({ ok: true, message: 'Thank you! Your review was submitted for owner approval.', reviewId: created.id });
+  } catch (error) {
+    console.error('Unable to save customer review:', error.message);
+    return res.status(500).json({ ok: false, message: 'Your review could not be submitted. Please try again.' });
+  }
+});
+
+app.get('/api/owner/reviews', async (req, res) => {
+  if (!requireOwnerApi(req, res)) return;
+  try {
+    const reviews = await readReviewsFile();
+    reviews.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ ok: true, reviews });
+  } catch (error) {
+    console.error('Unable to load review queue:', error.message);
+    return res.status(500).json({ ok: false, message: 'Could not load the review queue.' });
+  }
+});
+
+app.patch('/api/owner/reviews/:id', async (req, res) => {
+  if (!requireOwnerApi(req, res)) return;
+  const status = clean(req.body.status, 20);
+  if (!['pending', 'approved', 'declined'].includes(status)) {
+    return res.status(400).json({ ok: false, message: 'Choose pending, approved, or declined.' });
+  }
+  try {
+    const result = await mutateReviews(reviews => {
+      const review = reviews.find(item => item.id === req.params.id);
+      if (!review) return null;
+      review.status = status;
+      review.updatedAt = new Date().toISOString();
+      return review;
+    });
+    if (!result) return res.status(404).json({ ok: false, message: 'That review could not be found.' });
+    return res.json({ ok: true, review: result, message: status === 'approved' ? 'Review approved and published.' : status === 'declined' ? 'Review declined and kept out of the public website.' : 'Review moved back to pending.' });
+  } catch (error) {
+    console.error('Unable to update review status:', error.message);
+    return res.status(500).json({ ok: false, message: 'Could not update the review. Please try again.' });
   }
 });
 
@@ -490,10 +677,11 @@ app.use((req, res, next) => {
 });
 
 initializeJobStorage()
+  .then(initializeReviewAndPasswordStorage)
   .then(() => {
     app.listen(PORT, () => {
       console.log('RK Plumbing website listening on port ' + PORT);
-      console.log('Owner work schedule storage ready at ' + DATA_DIR);
+      console.log('Owner work schedule and review storage ready at ' + DATA_DIR);
     });
   })
   .catch(error => {
