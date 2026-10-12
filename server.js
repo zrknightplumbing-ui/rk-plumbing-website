@@ -1,4 +1,6 @@
 const express = require('express');
+const crypto = require('crypto');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -24,6 +26,66 @@ function getClientIp(req) {
 
 function isValidEmail(value) {
   return !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+// Private owner access. Credentials and signing secret are stored as Railway variables.
+const OWNER_COOKIE = 'rk_owner_session';
+const OWNER_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+const OWNER_EMAIL = (process.env.OWNER_EMAIL || '').trim().toLowerCase();
+const OWNER_PASSWORD = process.env.OWNER_PASSWORD || '';
+const OWNER_SESSION_SECRET = process.env.OWNER_SESSION_SECRET || '';
+const ownerSessions = new Map();
+const ownerLoginAttempts = new Map();
+const OWNER_LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const OWNER_LOGIN_MAX_ATTEMPTS = 8;
+
+function safeEqual(a, b) {
+  const left = Buffer.from(String(a));
+  const right = Buffer.from(String(b));
+  return left.length === right.length && crypto.timingSafeEqual(left, right);
+}
+
+function ownerAuthConfigured() {
+  return Boolean(OWNER_EMAIL && OWNER_PASSWORD && OWNER_SESSION_SECRET);
+}
+
+function signOwnerSession(sessionId) {
+  return crypto.createHmac('sha256', OWNER_SESSION_SECRET).update(sessionId).digest('base64url');
+}
+
+function readCookie(req, name) {
+  const cookieHeader = String(req.headers.cookie || '');
+  for (const part of cookieHeader.split(';')) {
+    const index = part.indexOf('=');
+    if (index < 0) continue;
+    if (part.slice(0, index).trim() === name) return part.slice(index + 1).trim();
+  }
+  return '';
+}
+
+function getOwnerSessionId(req) {
+  if (!ownerAuthConfigured()) return '';
+  const token = readCookie(req, OWNER_COOKIE);
+  const separator = token.indexOf('.');
+  if (separator <= 0) return '';
+  const sessionId = token.slice(0, separator);
+  const signature = token.slice(separator + 1);
+  if (!safeEqual(signature, signOwnerSession(sessionId))) return '';
+  const expiresAt = ownerSessions.get(sessionId);
+  if (!expiresAt || expiresAt <= Date.now()) {
+    ownerSessions.delete(sessionId);
+    return '';
+  }
+  return sessionId;
+}
+
+function setOwnerCookie(res, sessionId) {
+  const token = sessionId + '.' + signOwnerSession(sessionId);
+  res.setHeader('Set-Cookie', OWNER_COOKIE + '=' + token + '; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=' + Math.floor(OWNER_SESSION_TTL_MS / 1000));
+}
+
+function clearOwnerCookie(res) {
+  res.setHeader('Set-Cookie', OWNER_COOKIE + '=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0');
 }
 
 async function sendSms(body) {
@@ -83,6 +145,59 @@ async function sendEmail(subject, textBody, htmlBody) {
     throw new Error('Resend error: ' + detail.slice(0, 500));
   }
 }
+
+app.get('/owner-login', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  if (getOwnerSessionId(req)) return res.redirect('/owner');
+  res.sendFile(path.join(__dirname, 'owner-login.html'));
+});
+
+app.get('/owner', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  if (!getOwnerSessionId(req)) return res.redirect('/owner-login');
+  res.sendFile(path.join(__dirname, 'private', 'owner-dashboard.html'));
+});
+
+app.post('/api/owner/login', (req, res) => {
+  if (!ownerAuthConfigured()) {
+    return res.status(503).json({ ok: false, message: 'Owner login is not configured yet. Please contact the site owner.' });
+  }
+
+  const ip = getClientIp(req);
+  const now = Date.now();
+  const attempts = (ownerLoginAttempts.get(ip) || []).filter(ts => now - ts < OWNER_LOGIN_WINDOW_MS);
+  if (attempts.length >= OWNER_LOGIN_MAX_ATTEMPTS) {
+    ownerLoginAttempts.set(ip, attempts);
+    return res.status(429).json({ ok: false, message: 'Too many sign-in attempts. Please wait 15 minutes and try again.' });
+  }
+
+  const email = clean(req.body.email, 254).toLowerCase();
+  const password = String(req.body.password ?? '').slice(0, 1024);
+  const valid = safeEqual(email, OWNER_EMAIL) && safeEqual(password, OWNER_PASSWORD);
+  if (!valid) {
+    attempts.push(now);
+    ownerLoginAttempts.set(ip, attempts);
+    return res.status(401).json({ ok: false, message: 'Sign-in failed. Check your email and password.' });
+  }
+
+  ownerLoginAttempts.delete(ip);
+  for (const [id, expiry] of ownerSessions) {
+    if (expiry <= now) ownerSessions.delete(id);
+  }
+  const sessionId = crypto.randomBytes(32).toString('base64url');
+  ownerSessions.set(sessionId, now + OWNER_SESSION_TTL_MS);
+  setOwnerCookie(res, sessionId);
+  res.setHeader('Cache-Control', 'no-store');
+  return res.json({ ok: true });
+});
+
+app.post('/api/owner/logout', (req, res) => {
+  const sessionId = getOwnerSessionId(req);
+  if (sessionId) ownerSessions.delete(sessionId);
+  clearOwnerCookie(res);
+  res.setHeader('Cache-Control', 'no-store');
+  return res.json({ ok: true });
+});
 
 app.get('/api/health', (req, res) => {
   res.json({
@@ -197,6 +312,9 @@ function escapeHtml(value) {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
 }
+
+// Do not serve dashboard files directly from the public static path.
+app.use('/private', (req, res) => res.sendStatus(404));
 
 app.use(express.static(__dirname));
 
