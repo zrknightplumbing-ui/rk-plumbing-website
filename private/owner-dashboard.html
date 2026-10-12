@@ -4,35 +4,179 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>Owner Area | RK Plumbing LLC</title>
+<title>Owner Dashboard | RK Plumbing LLC</title>
 <style>
-:root{--navy:#0b2340;--blue:#0b72d9;--sky:#eef6ff;--orange:#f28b22;--line:#d7e2ee}
-*{box-sizing:border-box}body{margin:0;background:#f4f8fc;color:#263648;font-family:Arial,Helvetica,sans-serif;line-height:1.6}
-header{background:var(--navy);color:#fff;padding:18px 0}.container{width:min(1000px,92%);margin:auto}.top{display:flex;align-items:center;justify-content:space-between;gap:20px}.brand{display:flex;align-items:center;gap:15px;font-size:1.1rem;font-weight:900}.brand img{background:#fff;border-radius:7px;width:76px;height:48px;object-fit:contain}
-button,.button{display:inline-block;border:0;border-radius:7px;background:var(--blue);color:#fff;padding:11px 16px;font:inherit;font-weight:800;text-decoration:none;cursor:pointer}.secondary{background:#fff;color:var(--navy);border:1px solid var(--line)}
-main{padding:44px 0}.eyebrow{text-transform:uppercase;letter-spacing:.12em;font-weight:900;font-size:.78rem;color:var(--blue)}h1{font-size:clamp(2rem,5vw,3rem);color:var(--navy);line-height:1.1;margin:10px 0}h2{color:var(--navy);margin-top:0}.intro{color:#5d6b79;max-width:700px}
-.card{margin-top:28px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:26px;box-shadow:0 8px 24px #0b23400d}.note{border-left:5px solid var(--orange);background:#fff7ed;padding:15px 18px;margin-top:18px}
-footer{padding:24px 0;color:#657789}
+:root{--navy:#0b2340;--blue:#0b72d9;--blue-dark:#0754a6;--sky:#eef6ff;--orange:#f28b22;--line:#d7e2ee;--ink:#263648;--muted:#647588;--green:#137547;--red:#b42318;--shadow:0 8px 24px #0b23400d}
+*{box-sizing:border-box}body{margin:0;background:#f4f8fc;color:var(--ink);font-family:Arial,Helvetica,sans-serif;line-height:1.5}
+header{background:var(--navy);color:#fff;padding:15px 0}.container{width:min(1120px,94%);margin:auto}.top{display:flex;align-items:center;justify-content:space-between;gap:20px}.brand{display:flex;align-items:center;gap:13px;font-size:1.05rem;font-weight:900}.brand img{background:#fff;border-radius:7px;width:80px;height:48px;object-fit:contain}.brand small{font-weight:500;color:#c9dff4}
+button,.button{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:7px;background:var(--blue);color:#fff;padding:11px 15px;font:inherit;font-weight:800;text-decoration:none;cursor:pointer;transition:filter .15s}.button.secondary,button.secondary{background:#fff;color:var(--navy);border:1px solid var(--line)}button:hover,.button:hover{filter:brightness(.96)}button:disabled{opacity:.6;cursor:wait}
+main{padding:36px 0 52px}.eyebrow{text-transform:uppercase;letter-spacing:.12em;font-weight:900;font-size:.78rem;color:var(--blue)}h1{font-size:clamp(2rem,5vw,3rem);color:var(--navy);line-height:1.1;margin:8px 0}h2{color:var(--navy);margin:0 0 6px;font-size:1.35rem}h3{color:var(--navy);margin:0}.intro{color:var(--muted);max-width:780px;margin:0 0 24px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:25px 0}.stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:20px;box-shadow:var(--shadow)}.stat span{display:block;color:var(--muted);font-weight:700;font-size:.94rem}.stat strong{display:block;color:var(--navy);font-size:2rem;line-height:1.2;margin-top:5px}
+.layout{display:grid;grid-template-columns:minmax(300px,.85fr) minmax(0,1.4fr);gap:20px;align-items:start}.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:23px;box-shadow:var(--shadow)}.card-heading{display:flex;justify-content:space-between;gap:16px;align-items:start;margin-bottom:18px}.hint{margin:0;color:var(--muted);font-size:.92rem}
+form{display:grid;gap:13px}.fields-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field label{display:block;font-weight:800;color:var(--navy);font-size:.9rem;margin-bottom:5px}.field input,.field select,.field textarea,.toolbar input,.toolbar select{width:100%;padding:11px 12px;border:1px solid #bccbda;border-radius:7px;background:white;font:inherit;color:var(--ink)}.field textarea{min-height:95px;resize:vertical}.field input:focus,.field select:focus,.field textarea:focus,.toolbar input:focus,.toolbar select:focus{outline:3px solid #0b72d926;border-color:var(--blue)}.form-actions{display:flex;gap:10px;flex-wrap:wrap}.form-actions button{flex:1}.form-status{min-height:22px;color:var(--green);font-weight:700;font-size:.92rem}.form-status.error{color:var(--red)}
+.toolbar{display:grid;grid-template-columns:minmax(160px,1fr) 170px;gap:10px;margin-bottom:16px}.job-list{display:grid;gap:12px}.job-card{border:1px solid var(--line);border-left:5px solid var(--blue);border-radius:10px;padding:16px;background:#fff}.job-card.is-overdue{border-left-color:var(--red)}.job-card.is-completed{border-left-color:var(--green);background:#fcfefd}.job-top{display:flex;justify-content:space-between;gap:12px;align-items:start}.job-title{font-size:1.08rem;font-weight:900;color:var(--navy);line-height:1.25}.job-subtitle{color:var(--muted);font-size:.94rem;margin-top:3px}.status{display:inline-flex;align-items:center;border-radius:999px;padding:4px 9px;font-weight:800;font-size:.77rem;white-space:nowrap;background:#eef2f6;color:#44566a}.status.confirmed{background:#e4f3ff;color:#0754a6}.status.in-progress{background:#fff0db;color:#8a4c00}.status.completed{background:#e4f6eb;color:#137547}.status.cancelled{background:#f3e9e9;color:#8a2828}.job-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-top:13px;font-size:.92rem}.meta-label{display:block;text-transform:uppercase;letter-spacing:.05em;font-size:.7rem;color:var(--muted);font-weight:900}.job-notes{margin:13px 0 0;padding-top:12px;border-top:1px solid #e7edf3;white-space:pre-wrap;overflow-wrap:anywhere}.job-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:15px}.job-actions button{font-size:.84rem;padding:8px 11px}.job-actions .danger{background:#fff;color:var(--red);border:1px solid #e7b7b7}.late-label{color:var(--red);font-weight:900;font-size:.8rem;margin-top:6px}.empty{background:var(--sky);border:1px dashed #b9cfe4;border-radius:10px;padding:28px;text-align:center;color:var(--muted)}.empty strong{display:block;color:var(--navy);margin-bottom:4px}.list-head{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-bottom:12px}.list-head p{margin:0;color:var(--muted);font-size:.9rem}footer{padding:22px 0;color:#657789}footer a{color:var(--blue-dark);font-weight:700}
+@media(max-width:850px){.layout{grid-template-columns:1fr}.form-card{order:0}.list-card{order:1}}
+@media(max-width:520px){.container{width:92%}.top{align-items:flex-start}.brand img{width:62px;height:42px}.top button{padding:9px 11px}.stats{gap:8px}.stat{padding:13px 10px}.stat strong{font-size:1.65rem}.stat span{font-size:.8rem}.card{padding:17px}.fields-2,.toolbar,.job-meta{grid-template-columns:1fr}.job-top{flex-direction:column}.status{align-self:flex-start}.job-actions button{flex:1}}
 </style>
 </head>
 <body>
-<header><div class="container top"><div class="brand"><img src="/rk-plumbing-logo.png" alt=""> <span>RK Plumbing LLC<br><small>Private Owner Area</small></span></div><button id="logout" class="secondary">Log Out</button></div></header>
+<header><div class="container top"><div class="brand"><img src="/rk-plumbing-logo.png" alt="RK Plumbing LLC logo"><span>RK Plumbing LLC<br><small>Owner schedule & work planner</small></span></div><button id="logout" class="secondary" type="button">Log Out</button></div></header>
 <main class="container">
-<div class="eyebrow">Owner access</div>
-<h1>Welcome to the owner area</h1>
-<p class="intro">You are signed in to the private RK Plumbing owner area. This is the secure starting point for owner tools. Review moderation and other management controls can be added here when you are ready.</p>
-<section class="card">
-<h2>Owner dashboard</h2>
-<p>Your owner login is active. The public website remains available to customers; this area is restricted to the owner account.</p>
-<div class="note"><strong>Next step:</strong> Owner controls such as approving or hiding customer reviews can be added here without giving public visitors access.</div>
-<p style="margin-top:22px"><a class="button" href="/">View public website</a></p>
+<div class="eyebrow">Private owner area</div>
+<h1>Work Schedule</h1>
+<p class="intro">Keep jobs, appointments, customer details, and next steps in one place. Changes are saved to the site's persistent Railway storage.</p>
+<div class="stats">
+<div class="stat"><span>Today's jobs</span><strong id="stat-today">—</strong></div>
+<div class="stat"><span>Next 7 days</span><strong id="stat-week">—</strong></div>
+<div class="stat"><span>Open jobs</span><strong id="stat-open">—</strong></div>
+</div>
+<div class="layout">
+<section class="card form-card" id="job-form-card">
+<div class="card-heading"><div><h2 id="form-title">Schedule work</h2><p class="hint">Add a new job or appointment.</p></div></div>
+<form id="job-form">
+<input type="hidden" id="job-id" name="id">
+<div class="field"><label for="title">Work / service *</label><input id="title" name="title" maxlength="120" required placeholder="e.g. Boiler installation"></div>
+<div class="field"><label for="customerName">Customer name *</label><input id="customerName" name="customerName" maxlength="120" required autocomplete="name" placeholder="Customer name"></div>
+<div class="fields-2">
+<div class="field"><label for="date">Date *</label><input id="date" name="date" type="date" required></div>
+<div class="field"><label for="time">Start time *</label><input id="time" name="time" type="time" required></div>
+</div>
+<div class="fields-2">
+<div class="field"><label for="durationMinutes">Estimated length</label><select id="durationMinutes" name="durationMinutes"><option value="30">30 minutes</option><option value="60" selected>1 hour</option><option value="90">1.5 hours</option><option value="120">2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option><option value="360">6 hours</option><option value="480">8 hours</option></select></div>
+<div class="field"><label for="status-input">Job status</label><select id="status-input" name="status"><option value="scheduled">Scheduled</option><option value="confirmed">Confirmed</option><option value="in-progress">In progress</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select></div>
+</div>
+<div class="field"><label for="phone">Customer phone</label><input id="phone" name="phone" type="tel" maxlength="40" autocomplete="tel" placeholder="Phone number"></div>
+<div class="field"><label for="email">Customer email</label><input id="email" name="email" type="email" maxlength="160" autocomplete="email" placeholder="Email address (optional)"></div>
+<div class="field"><label for="address">Job address</label><input id="address" name="address" maxlength="240" autocomplete="street-address" placeholder="Street, town, ZIP"></div>
+<div class="field"><label for="notes">Work notes / materials / next steps</label><textarea id="notes" name="notes" maxlength="3000" placeholder="Access details, parts to bring, estimate follow-up, etc."></textarea></div>
+<div class="form-actions"><button type="submit" id="save-job">Save to schedule</button><button type="button" id="cancel-edit" class="secondary" hidden>Cancel edit</button></div>
+<div class="form-status" id="form-status" role="status" aria-live="polite"></div>
+</form>
 </section>
+<section class="card list-card">
+<div class="list-head"><div><h2>Scheduled work</h2><p id="job-count">Loading your schedule…</p></div><button type="button" id="refresh-jobs" class="secondary">Refresh</button></div>
+<div class="toolbar"><input id="search" type="search" placeholder="Search customer, service, address…"><select id="status-filter" aria-label="Filter by job status"><option value="all">All statuses</option><option value="scheduled">Scheduled</option><option value="confirmed">Confirmed</option><option value="in-progress">In progress</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select></div>
+<div class="job-list" id="job-list"><div class="empty">Loading schedule…</div></div>
+</section>
+</div>
 </main>
-<footer><div class="container">RK Plumbing LLC · Newport, NH 03773 · <a href="tel:6037109777">603-710-9777</a></div></footer>
+<footer><div class="container">RK Plumbing LLC · Newport, NH 03773 · <a href="tel:6037109777">603-710-9777</a> · <a href="/">Public website</a></div></footer>
 <script>
-document.getElementById('logout').addEventListener('click',async()=>{
- try{await fetch('/api/owner/logout',{method:'POST'});}finally{window.location.replace('/owner-login');}
+const jobForm=document.getElementById('job-form');
+const formStatus=document.getElementById('form-status');
+const jobList=document.getElementById('job-list');
+const jobCount=document.getElementById('job-count');
+let jobs=[];
+let isSaving=false;
+const statusLabels={scheduled:'Scheduled',confirmed:'Confirmed','in-progress':'In progress',completed:'Completed',cancelled:'Cancelled'};
+const closedStatuses=new Set(['completed','cancelled']);
+const localDateKey=(date=new Date())=>date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0');
+document.getElementById('date').min=localDateKey();
+
+function escapeHtml(value){return String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');}
+function jobWhen(job){return job.date+'T'+job.time;}
+function isPast(job){return !closedStatuses.has(job.status)&&jobWhen(job)<localDateKey()+'T'+String(new Date().getHours()).padStart(2,'0')+':'+String(new Date().getMinutes()).padStart(2,'0');}
+function formatDate(job){const d=new Date(job.date+'T'+job.time+':00');return d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric',year:'numeric'})+' · '+d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});}
+function formatDuration(minutes){const n=Number(minutes)||60;if(n<60)return n+' min';const h=Math.floor(n/60),m=n%60;return h+'h'+(m?' '+m+'m':'');}
+function showFormMessage(message,error=false){formStatus.textContent=message;formStatus.classList.toggle('error',error);}
+async function api(url,options={}){const response=await fetch(url,{...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});const data=await response.json().catch(()=>({}));if(response.status===401){window.location.replace('/owner-login');throw new Error('Please sign in again.');}if(!response.ok||!data.ok)throw new Error(data.message||'Something went wrong.');return data;}
+
+async function loadJobs(){
+ jobList.innerHTML='<div class="empty">Loading schedule…</div>';
+ try{
+  const data=await api('/api/owner/jobs',{headers:{}});
+  jobs=Array.isArray(data.jobs)?data.jobs:[];
+  jobs.sort((a,b)=>jobWhen(a).localeCompare(jobWhen(b)));
+  renderJobs();
+ }catch(error){jobList.innerHTML='<div class="empty"><strong>Could not load schedule</strong>'+escapeHtml(error.message)+'</div>';jobCount.textContent='Schedule unavailable';}
+}
+function renderJobs(){
+ const today=localDateKey();
+ const weekDate=new Date();weekDate.setDate(weekDate.getDate()+7);const weekEnd=localDateKey(weekDate);
+ const active=jobs.filter(j=>!closedStatuses.has(j.status));
+ document.getElementById('stat-today').textContent=active.filter(j=>j.date===today).length;
+ document.getElementById('stat-week').textContent=active.filter(j=>j.date>=today&&j.date<=weekEnd).length;
+ document.getElementById('stat-open').textContent=active.length;
+
+ const search=document.getElementById('search').value.trim().toLowerCase();
+ const status=document.getElementById('status-filter').value;
+ const filtered=jobs.filter(job=>{
+  if(status!=='all'&&job.status!==status)return false;
+  if(!search)return true;
+  return [job.title,job.customerName,job.phone,job.email,job.address,job.notes].some(v=>String(v||'').toLowerCase().includes(search));
+ });
+ jobCount.textContent=filtered.length+' '+(filtered.length===1?'job':'jobs')+' · '+jobs.length+' total';
+ if(!filtered.length){
+  jobList.innerHTML=jobs.length?'<div class="empty"><strong>No matching work</strong>Try a different search or status filter.</div>':'<div class="empty"><strong>Your schedule is clear</strong>Add your first appointment using the form. Jobs you add will appear here.</div>';
+  return;
+ }
+ jobList.innerHTML=filtered.map(job=>{
+  const overdue=isPast(job);
+  const isCompleted=job.status==='completed';
+  return '<article class="job-card '+(overdue?'is-overdue ':'')+(isCompleted?'is-completed':'')+'">'+
+   '<div class="job-top"><div><div class="job-title">'+escapeHtml(job.title)+'</div><div class="job-subtitle">'+escapeHtml(job.customerName)+'</div>'+(overdue?'<div class="late-label">Past due · update status or reschedule</div>':'')+'</div>'+
+   '<span class="status '+escapeHtml(job.status)+'">'+escapeHtml(statusLabels[job.status]||job.status)+'</span></div>'+
+   '<div class="job-meta"><div><span class="meta-label">When</span>'+escapeHtml(formatDate(job))+'</div><div><span class="meta-label">Estimated length</span>'+escapeHtml(formatDuration(job.durationMinutes))+'</div>'+
+   (job.phone?'<div><span class="meta-label">Phone</span><a href="tel:'+escapeHtml(job.phone)+'">'+escapeHtml(job.phone)+'</a></div>':'')+
+   (job.email?'<div><span class="meta-label">Email</span><a href="mailto:'+escapeHtml(job.email)+'">'+escapeHtml(job.email)+'</a></div>':'')+
+   (job.address?'<div style="grid-column:1/-1"><span class="meta-label">Address</span>'+escapeHtml(job.address)+'</div>':'')+'</div>'+
+   (job.notes?'<div class="job-notes"><span class="meta-label">Notes / next steps</span>'+escapeHtml(job.notes)+'</div>':'')+
+   '<div class="job-actions"><button type="button" data-action="edit" data-id="'+escapeHtml(job.id)+'" class="secondary">Edit / reschedule</button>'+
+   (!closedStatuses.has(job.status)?'<button type="button" data-action="complete" data-id="'+escapeHtml(job.id)+'">Mark complete</button>':'')+
+   (job.status!=='cancelled'?'<button type="button" data-action="cancel" data-id="'+escapeHtml(job.id)+'" class="secondary">Cancel job</button>':'')+
+   '<button type="button" data-action="delete" data-id="'+escapeHtml(job.id)+'" class="danger">Delete</button></div></article>';
+ }).join('');
+}
+function resetForm(){
+ jobForm.reset();document.getElementById('job-id').value='';document.getElementById('status-input').value='scheduled';document.getElementById('durationMinutes').value='60';document.getElementById('form-title').textContent='Schedule work';document.getElementById('save-job').textContent='Save to schedule';document.getElementById('cancel-edit').hidden=true;document.getElementById('date').min=localDateKey();showFormMessage('');
+}
+function editJob(job){
+ document.getElementById('job-id').value=job.id;
+ for(const key of ['title','customerName','date','time','durationMinutes','phone','email','address','notes']){if(job[key]!==undefined&&jobForm.elements[key])jobForm.elements[key].value=job[key];}
+ document.getElementById('status-input').value=job.status||'scheduled';
+ document.getElementById('date').min='';
+ document.getElementById('form-title').textContent='Edit scheduled work';
+ document.getElementById('save-job').textContent='Save changes';
+ document.getElementById('cancel-edit').hidden=false;
+ showFormMessage('Editing '+job.title+'. Save changes when finished.');
+ document.getElementById('job-form-card').scrollIntoView({behavior:'smooth',block:'start'});
+}
+jobForm.addEventListener('submit',async event=>{
+ event.preventDefault();if(isSaving)return;isSaving=true;
+ const button=document.getElementById('save-job');button.disabled=true;showFormMessage('');
+ const values=Object.fromEntries(new FormData(jobForm).entries());
+ const id=values.id;delete values.id;values.durationMinutes=Number(values.durationMinutes);
+ try{
+  const data=await api(id?'/api/owner/jobs/'+encodeURIComponent(id):'/api/owner/jobs',{method:id?'PUT':'POST',body:JSON.stringify(values)});
+  showFormMessage(data.message||'Saved.');resetForm();await loadJobs();showFormMessage(data.message||'Saved.');
+ }catch(error){showFormMessage(error.message,true);}
+ finally{isSaving=false;button.disabled=false;button.textContent=document.getElementById('job-id').value?'Save changes':'Save to schedule';}
 });
+document.getElementById('cancel-edit').addEventListener('click',resetForm);
+document.getElementById('refresh-jobs').addEventListener('click',loadJobs);
+document.getElementById('search').addEventListener('input',renderJobs);
+document.getElementById('status-filter').addEventListener('change',renderJobs);
+jobList.addEventListener('click',async event=>{
+ const button=event.target.closest('button[data-action]');if(!button)return;
+ const job=jobs.find(item=>item.id===button.dataset.id);if(!job)return;
+ const action=button.dataset.action;
+ if(action==='edit'){editJob(job);return;}
+ try{
+  if(action==='delete'){
+   if(!confirm('Permanently delete the scheduled work for '+job.customerName+' ('+job.title+')?'))return;
+   await api('/api/owner/jobs/'+encodeURIComponent(job.id),{method:'DELETE'});
+  }else{
+   const nextStatus=action==='complete'?'completed':'cancelled';
+   const prompt=action==='complete'?'Mark this job as complete?':'Mark this job as cancelled?';
+   if(!confirm(prompt))return;
+   const update={...job,status:nextStatus};delete update.id;delete update.createdAt;delete update.updatedAt;
+   await api('/api/owner/jobs/'+encodeURIComponent(job.id),{method:'PUT',body:JSON.stringify(update)});
+  }
+  await loadJobs();
+ }catch(error){alert(error.message);}
+});
+document.getElementById('logout').addEventListener('click',async()=>{try{await fetch('/api/owner/logout',{method:'POST'});}finally{window.location.replace('/owner-login');}});
+loadJobs();
 </script>
 </body>
 </html>
