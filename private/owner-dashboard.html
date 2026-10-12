@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Owner Area | RK Plumbing LLC</title>
+<style>
+:root{--navy:#0b2340;--blue:#0b72d9;--sky:#eef6ff;--orange:#f28b22;--line:#d7e2ee}
+*{box-sizing:border-box}body{margin:0;background:#f4f8fc;color:#263648;font-family:Arial,Helvetica,sans-serif;line-height:1.6}
+header{background:var(--navy);color:#fff;padding:18px 0}.container{width:min(1000px,92%);margin:auto}.top{display:flex;align-items:center;justify-content:space-between;gap:20px}.brand{display:flex;align-items:center;gap:15px;font-size:1.1rem;font-weight:900}.brand img{background:#fff;border-radius:7px;width:76px;height:48px;object-fit:contain}
+button,.button{display:inline-block;border:0;border-radius:7px;background:var(--blue);color:#fff;padding:11px 16px;font:inherit;font-weight:800;text-decoration:none;cursor:pointer}.secondary{background:#fff;color:var(--navy);border:1px solid var(--line)}
+main{padding:44px 0}.eyebrow{text-transform:uppercase;letter-spacing:.12em;font-weight:900;font-size:.78rem;color:var(--blue)}h1{font-size:clamp(2rem,5vw,3rem);color:var(--navy);line-height:1.1;margin:10px 0}h2{color:var(--navy);margin-top:0}.intro{color:#5d6b79;max-width:700px}
+.card{margin-top:28px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:26px;box-shadow:0 8px 24px #0b23400d}.note{border-left:5px solid var(--orange);background:#fff7ed;padding:15px 18px;margin-top:18px}
+footer{padding:24px 0;color:#657789}
+</style>
+</head>
+<body>
+<header><div class="container top"><div class="brand"><img src="/rk-plumbing-logo.png" alt=""> <span>RK Plumbing LLC<br><small>Private Owner Area</small></span></div><button id="logout" class="secondary">Log Out</button></div></header>
+<main class="container">
+<div class="eyebrow">Owner access</div>
+<h1>Welcome to the owner area</h1>
+<p class="intro">You are signed in to the private RK Plumbing owner area. This is the secure starting point for owner tools. Review moderation and other management controls can be added here when you are ready.</p>
+<section class="card">
+<h2>Owner dashboard</h2>
+<p>Your owner login is active. The public website remains available to customers; this area is restricted to the owner account.</p>
+<div class="note"><strong>Next step:</strong> Owner controls such as approving or hiding customer reviews can be added here without giving public visitors access.</div>
+<p style="margin-top:22px"><a class="button" href="/">View public website</a></p>
+</section>
+</main>
+<footer><div class="container">RK Plumbing LLC · Newport, NH 03773 · <a href="tel:6037109777">603-710-9777</a></div></footer>
+<script>
+document.getElementById('logout').addEventListener('click',async()=>{
+ try{await fetch('/api/owner/logout',{method:'POST'});}finally{window.location.replace('/owner-login');}
+});
+</script>
+</body>
+</html>
