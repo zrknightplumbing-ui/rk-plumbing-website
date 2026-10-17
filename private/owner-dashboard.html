@@ -83,6 +83,14 @@ form{display:grid;gap:13px}.fields-2{display:grid;grid-template-columns:1fr 1fr;
 .calendar-feed-status{min-height:22px;font-weight:700;font-size:.9rem;color:var(--green);margin-top:8px}
 .calendar-feed-status.error{color:var(--red)}
 
+.calendar-readonly-alternative{margin-top:20px;border-top:1px solid var(--line);padding-top:15px}
+.calendar-readonly-alternative summary{cursor:pointer;font-weight:800;color:var(--muted)}
+.calendar-readonly-alternative p{margin-top:10px}
+#google-calendar-select{width:100%;padding:11px 12px;border:1px solid #bccbda;border-radius:7px;background:white;font:inherit;color:var(--ink);margin-top:6px}
+#google-calendar-setup-message{margin:12px 0;text-align:left}
+#google-calendar-setup-message code{display:block;overflow-wrap:anywhere;margin-top:8px}
+
+
 
 @media(max-width:850px){.layout{grid-template-columns:1fr}.form-card{order:0}.list-card{order:1}}
 @media(max-width:520px){.container{width:92%}.top{align-items:flex-start}.brand img{width:62px;height:42px}.top button{padding:9px 11px}.stats{gap:8px}.stat{padding:13px 10px}.stat strong{font-size:1.65rem}.stat span{font-size:.8rem}.card{padding:17px}.fields-2,.toolbar,.job-meta{grid-template-columns:1fr}.job-top{flex-direction:column}.status{align-self:flex-start}.job-actions button{flex:1}}
@@ -158,11 +166,33 @@ form{display:grid;gap:13px}.fields-2{display:grid;grid-template-columns:1fr 1fr;
 <span><i class="calendar-dot completed"></i>Completed</span>
 <span><i class="calendar-dot cancelled"></i>Cancelled</span>
 </div>
-<div class="calendar-sync">
-<h3>Connect to Google Calendar on your iPhone</h3>
-<p>Create a private, read-only calendar link. Add it to Google Calendar once using a computer browser; then it will appear in the Google Calendar app on your iPhone.</p>
-<p class="calendar-feed-warning">The synced events show service, customer name, job address, time, and status. Phone numbers, email addresses, and private job notes are not included. Anyone with the private link can view the included details, so do not share it publicly.</p>
-<div class="calendar-feed-actions"><button type="button" id="show-calendar-feed">Show private sync link</button></div>
+<div class="calendar-sync" id="google-calendar-sync">
+<h3>Google Calendar Two-Way Sync</h3>
+<p>Connect the Google account used on your iPhone. Once connected, jobs added or changed here sync to Google Calendar, and events created or changed in the selected Google Calendar sync back to this work schedule.</p>
+<p class="calendar-feed-warning">Choose a dedicated, writable work calendar so personal events aren't imported. Only the selected calendar syncs. Event title, time, location, and customer name are shared between the two calendars; phone, email, and private work notes stay in the owner schedule.</p>
+<div id="google-calendar-setup-message" class="empty" hidden>
+<strong>One-time Google setup is needed</strong>
+The site needs Google OAuth credentials in Railway before the Connect button can work. The redirect URL to register in Google Cloud is:
+<code>https://rk-plumbing-website-production.up.railway.app/auth/google/callback</code>
+</div>
+<div class="calendar-feed-actions">
+<a class="button" id="google-calendar-connect" href="/owner/google-calendar/connect">Connect Google Calendar</a>
+<button type="button" id="google-calendar-disconnect" class="secondary" hidden>Disconnect Google</button>
+</div>
+<div id="google-calendar-status" class="calendar-feed-status" role="status" aria-live="polite">Checking Google Calendar connection…</div>
+<div id="google-calendar-connected" hidden>
+<div class="field"><label for="google-calendar-select">Google work calendar</label><select id="google-calendar-select"><option value="">Load writable calendars…</option></select></div>
+<div class="calendar-feed-actions">
+<button type="button" id="google-calendar-refresh-list" class="secondary">Refresh calendars</button>
+<button type="button" id="google-calendar-select-button">Use selected calendar</button>
+<button type="button" id="google-calendar-sync-now">Sync now</button>
+</div>
+<p class="calendar-feed-warning">On your iPhone, create events on this dedicated Google Calendar. A useful title format is <strong>Service — Customer Name</strong>. The system checks for changes automatically about once a minute while the website is running; use Sync now to force an immediate sync.</p>
+</div>
+<details class="calendar-readonly-alternative">
+<summary>Optional: old read-only calendar link</summary>
+<p>This is the one-way fallback. It cannot send appointments created on your phone back to the RK Plumbing work schedule.</p>
+<div class="calendar-feed-actions"><button type="button" id="show-calendar-feed">Show private read-only link</button></div>
 <div id="calendar-feed-controls" hidden>
 <label class="field" for="calendar-feed-url">Private Google Calendar subscription URL</label>
 <input type="url" class="calendar-feed-url" id="calendar-feed-url" readonly spellcheck="false" aria-label="Private Google Calendar subscription URL">
@@ -172,6 +202,7 @@ form{display:grid;gap:13px}.fields-2{display:grid;grid-template-columns:1fr 1fr;
 </div>
 <div id="calendar-feed-status" class="calendar-feed-status" role="status" aria-live="polite"></div>
 </div>
+</details>
 </div>
 </div>
 </section>
@@ -382,6 +413,112 @@ document.getElementById('calendar-prev').addEventListener('click',()=>{calendarS
 document.getElementById('calendar-next').addEventListener('click',()=>{calendarStart.setDate(calendarStart.getDate()+30);renderCalendar();});
 document.getElementById('calendar-today').addEventListener('click',()=>{calendarStart=new Date();calendarStart.setHours(0,0,0,0);renderCalendar();});
 document.getElementById('calendar-refresh').addEventListener('click',loadJobs);
+const googleCalendarSetupMessage=document.getElementById('google-calendar-setup-message');
+const googleCalendarConnect=document.getElementById('google-calendar-connect');
+const googleCalendarDisconnect=document.getElementById('google-calendar-disconnect');
+const googleCalendarConnected=document.getElementById('google-calendar-connected');
+const googleCalendarSelect=document.getElementById('google-calendar-select');
+const googleCalendarStatus=document.getElementById('google-calendar-status');
+function setGoogleCalendarMessage(message,error=false){
+ googleCalendarStatus.textContent=message;
+ googleCalendarStatus.classList.toggle('error',error);
+}
+async function loadGoogleCalendarStatus(){
+ try{
+  const data=await api('/api/owner/google-calendar/status');
+  const status=data.status||{};
+  googleCalendarSetupMessage.hidden=Boolean(status.configured);
+  googleCalendarConnect.hidden=!status.configured||status.connected;
+  googleCalendarDisconnect.hidden=!status.connected;
+  googleCalendarConnected.hidden=!status.connected;
+  if(!status.configured){
+   setGoogleCalendarMessage('Waiting for Google OAuth credentials to be added in Railway. The current read-only calendar link still works.');
+   return status;
+  }
+  if(!status.connected){
+   setGoogleCalendarMessage('Google Calendar is not connected yet.');
+   return status;
+  }
+  if(!status.calendarId){
+   setGoogleCalendarMessage('Connected to '+(status.connectedEmail||'your Google account')+'. Choose a dedicated writable work calendar below.');
+   await loadWritableGoogleCalendars();
+  }else{
+   setGoogleCalendarMessage('Connected to '+(status.connectedEmail||'Google')+' · '+(status.calendarSummary||'work calendar')+
+    (status.lastSyncAt?' · Last sync '+new Date(status.lastSyncAt).toLocaleString():' · Initial sync pending')+
+    (status.lastSyncError?' · Sync warning: '+status.lastSyncError:''));
+   await loadWritableGoogleCalendars();
+  }
+  return status;
+ }catch(error){
+  setGoogleCalendarMessage('Could not check Google Calendar status: '+error.message,true);
+  return null;
+ }
+}
+async function loadWritableGoogleCalendars(){
+ googleCalendarSelect.disabled=true;
+ googleCalendarSelect.innerHTML='<option value="">Loading writable calendars…</option>';
+ try{
+  const data=await api('/api/owner/google-calendar/calendars');
+  const calendars=Array.isArray(data.calendars)?data.calendars:[];
+  if(!calendars.length){
+   googleCalendarSelect.innerHTML='<option value="">No writable calendars found</option>';
+   setGoogleCalendarMessage('Google is connected, but no writable calendars were returned. Create a work calendar in Google Calendar, then refresh this list.',true);
+   return;
+  }
+  googleCalendarSelect.innerHTML=calendars.map(calendar=>'<option value="'+escapeHtml(calendar.id)+'">'+escapeHtml(calendar.summary)+(calendar.primary?' (Primary)':'')+'</option>').join('');
+  const selected=calendars.find(calendar=>calendar.selected);
+  if(selected)googleCalendarSelect.value=selected.id;
+ }catch(error){
+  googleCalendarSelect.innerHTML='<option value="">Could not load calendars</option>';
+  setGoogleCalendarMessage(error.message,true);
+ }finally{googleCalendarSelect.disabled=false;}
+}
+document.getElementById('google-calendar-refresh-list').addEventListener('click',loadWritableGoogleCalendars);
+document.getElementById('google-calendar-select-button').addEventListener('click',async event=>{
+ const calendarId=googleCalendarSelect.value;
+ if(!calendarId){setGoogleCalendarMessage('Choose a writable Google Calendar first.',true);return;}
+ const button=event.currentTarget;button.disabled=true;button.textContent='Connecting…';
+ try{
+  const data=await api('/api/owner/google-calendar/select',{method:'POST',body:JSON.stringify({calendarId})});
+  setGoogleCalendarMessage(data.message||'Calendar connected and synced.');
+  await loadJobs();
+  await loadGoogleCalendarStatus();
+ }catch(error){setGoogleCalendarMessage(error.message,true);}
+ finally{button.disabled=false;button.textContent='Use selected calendar';}
+});
+document.getElementById('google-calendar-sync-now').addEventListener('click',async event=>{
+ const button=event.currentTarget;button.disabled=true;button.textContent='Syncing…';
+ try{
+  const data=await api('/api/owner/google-calendar/sync',{method:'POST',body:'{}'});
+  await loadJobs();
+  const stats=data.stats||{};
+  setGoogleCalendarMessage((data.message||'Calendar synced.')+' Imported '+(stats.importedFromGoogle||0)+', updated from Google '+(stats.updatedFromGoogle||0)+', updated in Google '+(stats.updatedInGoogle||0)+', new Google events '+(stats.createdInGoogle||0)+'.');
+  await loadGoogleCalendarStatus();
+ }catch(error){setGoogleCalendarMessage(error.message,true);await loadGoogleCalendarStatus();}
+ finally{button.disabled=false;button.textContent='Sync now';}
+});
+document.getElementById('google-calendar-disconnect').addEventListener('click',async()=>{
+ if(!confirm('Disconnect Google Calendar? Existing Google events and RK Plumbing scheduled jobs will not be deleted, but automatic syncing will stop.'))return;
+ try{
+  const data=await api('/api/owner/google-calendar/disconnect',{method:'POST',body:'{}'});
+  setGoogleCalendarMessage(data.message||'Google Calendar disconnected.');
+  await loadGoogleCalendarStatus();
+ }catch(error){setGoogleCalendarMessage(error.message,true);}
+});
+const googleOAuthResult=new URLSearchParams(window.location.search).get('google');
+if(googleOAuthResult){
+ showTab('calendar');
+ const messages={
+  'connected':'Google account authorized. Choose a dedicated writable calendar below to finish setup.',
+  'setup-required':'Google OAuth credentials still need to be configured in Railway.',
+  'denied':'Google permission was not granted. You can try Connect Google Calendar again.',
+  'state-error':'The connection request expired. Return to the dashboard and try connecting again.',
+  'auth-failed':'Google could not complete authorization. Check the OAuth credentials and redirect URL.'
+ };
+ setGoogleCalendarMessage(messages[googleOAuthResult]||'Google Calendar setup returned: '+googleOAuthResult,googleOAuthResult!=='connected');
+}
+loadGoogleCalendarStatus();
+
 const calendarFeedControls=document.getElementById('calendar-feed-controls');
 const calendarFeedInput=document.getElementById('calendar-feed-url');
 const calendarFeedStatus=document.getElementById('calendar-feed-status');
