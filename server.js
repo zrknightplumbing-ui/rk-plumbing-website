@@ -107,6 +107,8 @@ const DATA_DIR = process.env.DATA_DIR || '/tmp/rk-plumbing-schedule-data';
 const JOBS_FILE = path.join(DATA_DIR, 'jobs.json');
 const REVIEWS_FILE = path.join(DATA_DIR, 'reviews.json');
 const OWNER_PASSWORD_FILE = path.join(DATA_DIR, 'owner-password.json');
+const CALENDAR_FEED_FILE = path.join(DATA_DIR, 'calendar-feed-token.json');
+let calendarFeedToken = null;
 let jobWriteQueue = Promise.resolve();
 let reviewWriteQueue = Promise.resolve();
 const publicReviewAttempts = new Map();
@@ -165,6 +167,20 @@ function mutateReviews(mutator) {
   });
   reviewWriteQueue = operation.catch(() => {});
   return operation;
+}
+
+async function initializeCalendarFeedStorage() {
+  try {
+    const record = JSON.parse(await fs.readFile(CALENDAR_FEED_FILE, 'utf8'));
+    if (!record || typeof record.token !== 'string' || !/^[A-Za-z0-9_-]{40,80}$/.test(record.token)) {
+      throw new Error('Calendar feed token storage is not valid.');
+    }
+    calendarFeedToken = record.token;
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    calendarFeedToken = crypto.randomBytes(32).toString('base64url');
+    await atomicWriteFile(CALENDAR_FEED_FILE, { token: calendarFeedToken, createdAt: new Date().toISOString() });
+  }
 }
 
 async function initializeReviewAndPasswordStorage() {
@@ -552,6 +568,148 @@ app.patch('/api/owner/reviews/:id', async (req, res) => {
   }
 });
 
+
+function buildCalendarFeedUrl(req, token) {
+  const host = String(req.get('host') || 'rk-plumbing-website-production.up.railway.app').replace(/[^a-zA-Z0-9.:-]/g, '');
+  return 'https://' + host + '/calendar-feed/' + token + '.ics';
+}
+
+function escapeIcsText(value) {
+  return String(value ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/\r\n|\r|\n/g, '\\n')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,');
+}
+
+function foldIcsLine(line) {
+  const folded = [];
+  let current = '';
+  for (const character of String(line)) {
+    if (current && Buffer.byteLength(current + character, 'utf8') > 73) {
+      folded.push(current);
+      current = ' ' + character;
+    } else {
+      current += character;
+    }
+  }
+  folded.push(current);
+  return folded;
+}
+
+function icsUtcStamp(value) {
+  return new Date(value).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+}
+
+function icsLocalDateTime(date, time) {
+  return String(date).replace(/-/g, '') + 'T' + String(time).replace(':', '') + '00';
+}
+
+function calendarDuration(minutes) {
+  const value = Math.max(15, Math.min(720, Number(minutes) || 60));
+  const hours = Math.floor(value / 60);
+  const mins = value % 60;
+  return 'PT' + (hours ? hours + 'H' : '') + (mins ? mins + 'M' : '');
+}
+
+app.get('/api/owner/calendar-feed', (req, res) => {
+  if (!requireOwnerApi(req, res)) return;
+  res.setHeader('Cache-Control', 'no-store');
+  return res.json({ ok: true, url: buildCalendarFeedUrl(req, calendarFeedToken) });
+});
+
+app.post('/api/owner/calendar-feed/rotate', async (req, res) => {
+  if (!requireOwnerApi(req, res)) return;
+  try {
+    const nextToken = crypto.randomBytes(32).toString('base64url');
+    await atomicWriteFile(CALENDAR_FEED_FILE, { token: nextToken, createdAt: new Date().toISOString() });
+    calendarFeedToken = nextToken;
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ ok: true, url: buildCalendarFeedUrl(req, calendarFeedToken), message: 'A new private calendar link was created. The previous link no longer works.' });
+  } catch (error) {
+    console.error('Unable to rotate calendar feed link:', error.message);
+    return res.status(500).json({ ok: false, message: 'Could not create a new calendar link. Please try again.' });
+  }
+});
+
+// This URL is a private, read-only subscription feed. Keep it secret: anyone with the link can view the published schedule details.
+app.get('/calendar-feed/:token.ics', async (req, res) => {
+  if (!calendarFeedToken || !safeEqual(req.params.token, calendarFeedToken)) {
+    return res.status(404).type('text/plain').send('Calendar feed not found.');
+  }
+
+  try {
+    const jobs = await readJobsFile();
+    const now = new Date();
+    const lines = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//RK Plumbing LLC//Owner Work Schedule//EN',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'X-WR-CALNAME:RK Plumbing Work Schedule',
+      'X-WR-TIMEZONE:America/New_York',
+      'BEGIN:VTIMEZONE',
+      'TZID:America/New_York',
+      'X-LIC-LOCATION:America/New_York',
+      'BEGIN:DAYLIGHT',
+      'TZOFFSETFROM:-0500',
+      'TZOFFSETTO:-0400',
+      'TZNAME:EDT',
+      'DTSTART:20070311T020000',
+      'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU',
+      'END:DAYLIGHT',
+      'BEGIN:STANDARD',
+      'TZOFFSETFROM:-0400',
+      'TZOFFSETTO:-0500',
+      'TZNAME:EST',
+      'DTSTART:20071104T020000',
+      'RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU',
+      'END:STANDARD',
+      'END:VTIMEZONE'
+    ];
+
+    for (const job of jobs) {
+      if (!job || !job.id || !/^\d{4}-\d{2}-\d{2}$/.test(String(job.date)) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(job.time))) continue;
+      const status = JOB_STATUSES.has(job.status) ? job.status : 'scheduled';
+      const title = clean(job.title, 120) || 'Scheduled work';
+      const customerName = clean(job.customerName, 120);
+      const summary = '[RK Plumbing] ' + title + (customerName ? ' — ' + customerName : '');
+      const startStamp = icsLocalDateTime(job.date, job.time);
+      const updatedAt = job.updatedAt || job.createdAt || now.toISOString();
+      lines.push(
+        'BEGIN:VEVENT',
+        'UID:' + escapeIcsText(job.id) + '@rk-plumbing-website-production.up.railway.app',
+        'DTSTAMP:' + icsUtcStamp(now),
+        'LAST-MODIFIED:' + icsUtcStamp(updatedAt),
+        'DTSTART;TZID=America/New_York:' + startStamp,
+        'DURATION:' + calendarDuration(job.durationMinutes),
+        'SUMMARY:' + escapeIcsText(summary),
+        job.address ? 'LOCATION:' + escapeIcsText(clean(job.address, 240)) : '',
+        'DESCRIPTION:' + escapeIcsText('Status: ' + (statusLabelsForCalendar(status)) + '\nEstimated length: ' + (Number(job.durationMinutes) || 60) + ' minutes'),
+        status === 'cancelled' ? 'STATUS:CANCELLED' : 'STATUS:CONFIRMED',
+        'END:VEVENT'
+      );
+    }
+
+    lines.push('END:VCALENDAR');
+    const body = lines.filter(Boolean).flatMap(foldIcsLine).join('\r\n') + '\r\n';
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', 'inline; filename="rk-plumbing-work-schedule.ics"');
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+    return res.status(200).send(body);
+  } catch (error) {
+    console.error('Unable to generate private calendar feed:', error.message);
+    return res.status(500).type('text/plain').send('Calendar feed is temporarily unavailable.');
+  }
+});
+
+function statusLabelsForCalendar(status) {
+  const labels = { scheduled: 'Scheduled', confirmed: 'Confirmed', 'in-progress': 'In progress', completed: 'Completed', cancelled: 'Cancelled' };
+  return labels[status] || 'Scheduled';
+}
+
 app.get('/api/health', (req, res) => {
   res.json({
     ok: true,
@@ -678,6 +836,7 @@ app.use((req, res, next) => {
 
 initializeJobStorage()
   .then(initializeReviewAndPasswordStorage)
+  .then(initializeCalendarFeedStorage)
   .then(() => {
     app.listen(PORT, () => {
       console.log('RK Plumbing website listening on port ' + PORT);
