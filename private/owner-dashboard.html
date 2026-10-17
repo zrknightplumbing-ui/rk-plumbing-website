@@ -75,6 +75,15 @@ form{display:grid;gap:13px}.fields-2{display:grid;grid-template-columns:1fr 1fr;
 .calendar-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--blue)}
 .calendar-dot.confirmed{background:#0b72d9}.calendar-dot.in-progress{background:var(--orange)}.calendar-dot.completed{background:var(--green)}.calendar-dot.cancelled{background:var(--red)}
 
+.calendar-sync{margin-top:22px;padding-top:20px;border-top:1px solid var(--line)}
+.calendar-sync p{color:var(--muted);font-size:.9rem;margin:5px 0 12px}
+.calendar-feed-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.calendar-feed-url{width:100%;padding:11px 12px;border:1px solid #bccbda;border-radius:7px;background:#f8fbff;color:var(--ink);font:inherit}
+.calendar-feed-warning{font-size:.82rem!important}
+.calendar-feed-status{min-height:22px;font-weight:700;font-size:.9rem;color:var(--green);margin-top:8px}
+.calendar-feed-status.error{color:var(--red)}
+
+
 @media(max-width:850px){.layout{grid-template-columns:1fr}.form-card{order:0}.list-card{order:1}}
 @media(max-width:520px){.container{width:92%}.top{align-items:flex-start}.brand img{width:62px;height:42px}.top button{padding:9px 11px}.stats{gap:8px}.stat{padding:13px 10px}.stat strong{font-size:1.65rem}.stat span{font-size:.8rem}.card{padding:17px}.fields-2,.toolbar,.job-meta{grid-template-columns:1fr}.job-top{flex-direction:column}.status{align-self:flex-start}.job-actions button{flex:1}}
 </style>
@@ -148,6 +157,21 @@ form{display:grid;gap:13px}.fields-2{display:grid;grid-template-columns:1fr 1fr;
 <span><i class="calendar-dot in-progress"></i>In progress</span>
 <span><i class="calendar-dot completed"></i>Completed</span>
 <span><i class="calendar-dot cancelled"></i>Cancelled</span>
+</div>
+<div class="calendar-sync">
+<h3>Connect to Google Calendar on your iPhone</h3>
+<p>Create a private, read-only calendar link. Add it to Google Calendar once using a computer browser; then it will appear in the Google Calendar app on your iPhone.</p>
+<p class="calendar-feed-warning">The synced events show service, customer name, job address, time, and status. Phone numbers, email addresses, and private job notes are not included. Anyone with the private link can view the included details, so do not share it publicly.</p>
+<div class="calendar-feed-actions"><button type="button" id="show-calendar-feed">Show private sync link</button></div>
+<div id="calendar-feed-controls" hidden>
+<label class="field" for="calendar-feed-url">Private Google Calendar subscription URL</label>
+<input type="url" class="calendar-feed-url" id="calendar-feed-url" readonly spellcheck="false" aria-label="Private Google Calendar subscription URL">
+<div class="calendar-feed-actions">
+<button type="button" id="copy-calendar-feed" class="secondary">Copy link</button>
+<button type="button" id="rotate-calendar-feed" class="secondary">Generate a new link</button>
+</div>
+<div id="calendar-feed-status" class="calendar-feed-status" role="status" aria-live="polite"></div>
+</div>
 </div>
 </div>
 </section>
@@ -358,6 +382,46 @@ document.getElementById('calendar-prev').addEventListener('click',()=>{calendarS
 document.getElementById('calendar-next').addEventListener('click',()=>{calendarStart.setDate(calendarStart.getDate()+30);renderCalendar();});
 document.getElementById('calendar-today').addEventListener('click',()=>{calendarStart=new Date();calendarStart.setHours(0,0,0,0);renderCalendar();});
 document.getElementById('calendar-refresh').addEventListener('click',loadJobs);
+const calendarFeedControls=document.getElementById('calendar-feed-controls');
+const calendarFeedInput=document.getElementById('calendar-feed-url');
+const calendarFeedStatus=document.getElementById('calendar-feed-status');
+function setCalendarFeedMessage(message,error=false){
+ calendarFeedStatus.textContent=message;
+ calendarFeedStatus.classList.toggle('error',error);
+}
+async function showCalendarFeed(){
+ const data=await api('/api/owner/calendar-feed');
+ calendarFeedInput.value=data.url;
+ calendarFeedControls.hidden=false;
+ setCalendarFeedMessage('Keep this URL private. Paste it into Google Calendar using a computer browser.');
+}
+document.getElementById('show-calendar-feed').addEventListener('click',async event=>{
+ const button=event.currentTarget;button.disabled=true;button.textContent='Loading link…';
+ try{await showCalendarFeed();}catch(error){setCalendarFeedMessage(error.message,true);}
+ finally{button.disabled=false;button.textContent='Show private sync link';}
+});
+document.getElementById('copy-calendar-feed').addEventListener('click',async()=>{
+ const url=calendarFeedInput.value;
+ if(!url){setCalendarFeedMessage('Show the sync link first.',true);return;}
+ try{
+  await navigator.clipboard.writeText(url);
+  setCalendarFeedMessage('Copied. Paste this link into Google Calendar on a computer.');
+ }catch(error){
+  calendarFeedInput.focus();calendarFeedInput.select();
+  setCalendarFeedMessage('The link is selected. Press Ctrl+C (or Copy) to copy it.');
+ }
+});
+document.getElementById('rotate-calendar-feed').addEventListener('click',async event=>{
+ if(!confirm('Generate a new private link? The old Google Calendar subscription URL will stop working, and you will need to subscribe with the new URL.'))return;
+ const button=event.currentTarget;button.disabled=true;setCalendarFeedMessage('');
+ try{
+  const data=await api('/api/owner/calendar-feed/rotate',{method:'POST',body:'{}'});
+  calendarFeedInput.value=data.url;
+  calendarFeedControls.hidden=false;
+  setCalendarFeedMessage(data.message||'A new private link was created. Subscribe to it in Google Calendar.');
+ }catch(error){setCalendarFeedMessage(error.message,true);}
+ finally{button.disabled=false;}
+});
 document.getElementById('calendar-grid').addEventListener('click',event=>{
  const button=event.target.closest('button[data-calendar-edit]');if(!button)return;
  const job=jobs.find(item=>item.id===button.dataset.calendarEdit);if(!job)return;
