@@ -647,7 +647,7 @@ app.get('/api/owner/google-calendar/calendars', async (req, res) => {
   try {
     const calendars = await googleCalendarList();
     const writable = calendars
-      .filter(calendar => ['owner', 'writer'].includes(calendar.accessRole) && calendar.id)
+      .filter(calendar => !calendar.primary && ['owner', 'writer'].includes(calendar.accessRole) && calendar.id)
       .map(calendar => ({
         id: calendar.id,
         summary: clean(calendar.summary || 'Untitled calendar', 200),
@@ -669,8 +669,8 @@ app.post('/api/owner/google-calendar/select', async (req, res) => {
   try {
     const calendars = await googleCalendarList();
     const selected = calendars.find(calendar => calendar.id === calendarId);
-    if (!selected || !['owner', 'writer'].includes(selected.accessRole)) {
-      return res.status(403).json({ ok: false, message: 'Choose a calendar where your Google account has edit access.' });
+    if (!selected || selected.primary || !['owner', 'writer'].includes(selected.accessRole)) {
+      return res.status(403).json({ ok: false, message: 'For safety, choose a dedicated non-primary work calendar where your Google account has edit access.' });
     }
     googleCalendarConnection = {
       ...googleCalendarConnection,
@@ -1086,7 +1086,7 @@ function googleEventToScheduleFields(event, existing = {}) {
   };
 }
 
-function makeGoogleEventBody(job) {
+function makeGoogleEventBody(job, includeId = false) {
   const durationMinutes = Math.max(15, Math.min(720, Number(job.durationMinutes) || 60));
   const startWallClock = new Date(String(job.date) + 'T' + String(job.time) + ':00Z');
   const endWallClock = new Date(startWallClock.getTime() + durationMinutes * 60000);
@@ -1095,7 +1095,6 @@ function makeGoogleEventBody(job) {
   const startTime = String(job.time) + ':00';
   const eventId = clean(job.googleCalendarEventId, 200) || String(job.id).replace(/-/g, '').toLowerCase();
   const body = {
-    id: /^[0-9a-v]{5,1024}$/.test(eventId) ? eventId : undefined,
     summary: googleEventTitleForJob(job),
     description: [
       'RK Plumbing work-schedule entry.',
@@ -1109,6 +1108,7 @@ function makeGoogleEventBody(job) {
       private: { rkPlumbingJobId: String(job.id), rkPlumbingManaged: 'true' }
     }
   };
+  if (includeId && /^[0-9a-v]{5,1024}$/.test(eventId)) body.id = eventId;
   if (job.address) body.location = clean(job.address, 240);
   else body.location = '';
   if (job.status === 'cancelled') body.status = 'cancelled';
@@ -1131,7 +1131,7 @@ async function listGoogleCalendarEvents(calendarId) {
 
 async function insertOrUpdateGoogleEvent(job, event = null) {
   const calendarId = googleCalendarConnection.calendarId;
-  const body = makeGoogleEventBody(job);
+  const body = makeGoogleEventBody(job, !event);
   if (event && event.id) {
     const result = await googleApiRequest('/calendars/' + encodeURIComponent(calendarId) + '/events/' + encodeURIComponent(event.id), {
       method: 'PATCH', body
