@@ -108,7 +108,29 @@ const JOBS_FILE = path.join(DATA_DIR, 'jobs.json');
 const REVIEWS_FILE = path.join(DATA_DIR, 'reviews.json');
 const OWNER_PASSWORD_FILE = path.join(DATA_DIR, 'owner-password.json');
 const CALENDAR_FEED_FILE = path.join(DATA_DIR, 'calendar-feed-token.json');
+const GOOGLE_CALENDAR_CONNECTION_FILE = path.join(DATA_DIR, 'google-calendar-connection.json');
+const GOOGLE_CALENDAR_SCOPES = [
+  'openid',
+  'email',
+  'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/calendar.calendarlist.readonly'
+];
+const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'https://rk-plumbing-website-production.up.railway.app/auth/google/callback';
 let calendarFeedToken = null;
+let googleCalendarConnection = {
+  refreshToken: null,
+  accessToken: null,
+  expiresAt: 0,
+  connectedEmail: '',
+  calendarId: '',
+  calendarSummary: '',
+  lastSyncAt: null,
+  lastSyncError: null,
+  lastSyncStats: null
+};
+const googleOAuthStates = new Map();
+let googleTokenRefreshPromise = null;
+let googleCalendarSyncPromise = null;
 let jobWriteQueue = Promise.resolve();
 let reviewWriteQueue = Promise.resolve();
 const publicReviewAttempts = new Map();
@@ -180,6 +202,17 @@ async function initializeCalendarFeedStorage() {
     if (error.code !== 'ENOENT') throw error;
     calendarFeedToken = crypto.randomBytes(32).toString('base64url');
     await atomicWriteFile(CALENDAR_FEED_FILE, { token: calendarFeedToken, createdAt: new Date().toISOString() });
+  }
+}
+
+async function initializeGoogleCalendarStorage() {
+  try {
+    const stored = JSON.parse(await fs.readFile(GOOGLE_CALENDAR_CONNECTION_FILE, 'utf8'));
+    if (!stored || typeof stored !== 'object' || Array.isArray(stored)) throw new Error('Google Calendar connection storage is not valid.');
+    googleCalendarConnection = { ...googleCalendarConnection, ...stored };
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    await atomicWriteFile(GOOGLE_CALENDAR_CONNECTION_FILE, googleCalendarConnection);
   }
 }
 
@@ -409,6 +442,289 @@ app.post('/api/owner/logout', (req, res) => {
   clearOwnerCookie(res);
   res.setHeader('Cache-Control', 'no-store');
   return res.json({ ok: true });
+});
+
+
+function googleOAuthConfigured() {
+  return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && GOOGLE_REDIRECT_URI);
+}
+
+function ownerSessionIsActive(sessionId) {
+  const expiry = ownerSessions.get(sessionId);
+  if (!expiry || expiry <= Date.now()) {
+    ownerSessions.delete(sessionId);
+    return false;
+  }
+  return true;
+}
+
+async function saveGoogleCalendarConnection() {
+  await atomicWriteFile(GOOGLE_CALENDAR_CONNECTION_FILE, googleCalendarConnection);
+}
+
+function googleCalendarStatus() {
+  return {
+    configured: googleOAuthConfigured(),
+    connected: Boolean(googleCalendarConnection.refreshToken),
+    connectedEmail: googleCalendarConnection.connectedEmail || '',
+    calendarId: googleCalendarConnection.calendarId || '',
+    calendarSummary: googleCalendarConnection.calendarSummary || '',
+    lastSyncAt: googleCalendarConnection.lastSyncAt || null,
+    lastSyncError: googleCalendarConnection.lastSyncError || null,
+    lastSyncStats: googleCalendarConnection.lastSyncStats || null,
+    redirectUri: GOOGLE_REDIRECT_URI
+  };
+}
+
+app.get('/owner/google-calendar/connect', (req, res) => {
+  const sessionId = getOwnerSessionId(req);
+  if (!sessionId) return res.redirect('/owner-login');
+  if (!googleOAuthConfigured()) return res.redirect('/owner?google=setup-required#google-calendar-sync');
+
+  const now = Date.now();
+  for (const [key, entry] of googleOAuthStates) {
+    if (entry.expiresAt <= now) googleOAuthStates.delete(key);
+  }
+  const state = crypto.randomBytes(32).toString('base64url');
+  googleOAuthStates.set(state, { sessionId, expiresAt: now + 10 * 60 * 1000 });
+
+  const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  authUrl.searchParams.set('client_id', process.env.GOOGLE_CLIENT_ID);
+  authUrl.searchParams.set('redirect_uri', GOOGLE_REDIRECT_URI);
+  authUrl.searchParams.set('response_type', 'code');
+  authUrl.searchParams.set('scope', GOOGLE_CALENDAR_SCOPES.join(' '));
+  authUrl.searchParams.set('access_type', 'offline');
+  authUrl.searchParams.set('prompt', 'consent');
+  authUrl.searchParams.set('include_granted_scopes', 'true');
+  authUrl.searchParams.set('state', state);
+  res.setHeader('Cache-Control', 'no-store');
+  return res.redirect(authUrl.toString());
+});
+
+app.get('/auth/google/callback', async (req, res) => {
+  const state = clean(req.query.state, 200);
+  const stateRecord = googleOAuthStates.get(state);
+  googleOAuthStates.delete(state);
+  if (!stateRecord || stateRecord.expiresAt <= Date.now() || !ownerSessionIsActive(stateRecord.sessionId)) {
+    return res.redirect('/owner?google=state-error#google-calendar-sync');
+  }
+  if (req.query.error) return res.redirect('/owner?google=denied#google-calendar-sync');
+  const code = clean(req.query.code, 4096);
+  if (!code || !googleOAuthConfigured()) return res.redirect('/owner?google=setup-required#google-calendar-sync');
+
+  try {
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        redirect_uri: GOOGLE_REDIRECT_URI,
+        grant_type: 'authorization_code'
+      })
+    });
+    const tokenData = await tokenResponse.json().catch(() => ({}));
+    if (!tokenResponse.ok || !tokenData.access_token) {
+      console.error('Google Calendar authorization exchange failed:', tokenData.error || tokenResponse.status);
+      return res.redirect('/owner?google=auth-failed#google-calendar-sync');
+    }
+
+    let connectedEmail = googleCalendarConnection.connectedEmail || '';
+    try {
+      const userResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+        headers: { Authorization: 'Bearer ' + tokenData.access_token }
+      });
+      if (userResponse.ok) {
+        const user = await userResponse.json();
+        connectedEmail = clean(user.email, 254).toLowerCase();
+      }
+    } catch {}
+
+    googleCalendarConnection = {
+      ...googleCalendarConnection,
+      refreshToken: tokenData.refresh_token || googleCalendarConnection.refreshToken || null,
+      accessToken: tokenData.access_token,
+      expiresAt: Date.now() + (Number(tokenData.expires_in) || 3600) * 1000,
+      connectedEmail,
+      lastSyncError: null
+    };
+    await saveGoogleCalendarConnection();
+    res.setHeader('Cache-Control', 'no-store');
+    return res.redirect('/owner?google=connected#google-calendar-sync');
+  } catch (error) {
+    console.error('Google Calendar authorization failed:', error.message);
+    return res.redirect('/owner?google=auth-failed#google-calendar-sync');
+  }
+});
+
+async function googleAccessToken() {
+  if (!googleOAuthConfigured()) throw new Error('Google Calendar is not configured yet. Add the Google OAuth credentials in Railway first.');
+  if (!googleCalendarConnection.refreshToken) throw new Error('Connect your Google account first.');
+  if (googleCalendarConnection.accessToken && googleCalendarConnection.expiresAt > Date.now() + 60000) {
+    return googleCalendarConnection.accessToken;
+  }
+  if (googleTokenRefreshPromise) return googleTokenRefreshPromise;
+
+  googleTokenRefreshPromise = (async () => {
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        refresh_token: googleCalendarConnection.refreshToken,
+        grant_type: 'refresh_token'
+      })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.access_token) {
+      googleCalendarConnection.lastSyncError = 'Google authorization needs to be reconnected. Use Disconnect, then Connect Google Calendar again.';
+      await saveGoogleCalendarConnection().catch(() => {});
+      throw new Error(googleCalendarConnection.lastSyncError);
+    }
+    googleCalendarConnection = {
+      ...googleCalendarConnection,
+      accessToken: data.access_token,
+      expiresAt: Date.now() + (Number(data.expires_in) || 3600) * 1000,
+      refreshToken: data.refresh_token || googleCalendarConnection.refreshToken
+    };
+    await saveGoogleCalendarConnection();
+    return googleCalendarConnection.accessToken;
+  })();
+
+  try {
+    return await googleTokenRefreshPromise;
+  } finally {
+    googleTokenRefreshPromise = null;
+  }
+}
+
+async function googleApiRequest(apiPath, options = {}, alreadyRetried = false) {
+  const token = await googleAccessToken();
+  const headers = { Authorization: 'Bearer ' + token, ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) };
+  const response = await fetch('https://www.googleapis.com/calendar/v3' + apiPath, {
+    ...options,
+    headers,
+    body: options.body && typeof options.body !== 'string' ? JSON.stringify(options.body) : options.body
+  });
+  if (response.status === 401 && !alreadyRetried) {
+    googleCalendarConnection.accessToken = '';
+    googleCalendarConnection.expiresAt = 0;
+    await saveGoogleCalendarConnection();
+    return googleApiRequest(apiPath, options, true);
+  }
+  if (response.status === 204) return null;
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = data?.error?.message || ('Google Calendar returned HTTP ' + response.status + '.');
+    throw new Error(String(message).slice(0, 240));
+  }
+  return data;
+}
+
+async function googleCalendarList() {
+  const calendars = [];
+  let pageToken = '';
+  do {
+    const params = new URLSearchParams({ maxResults: '250' });
+    if (pageToken) params.set('pageToken', pageToken);
+    const data = await googleApiRequest('/users/me/calendarList?' + params.toString());
+    calendars.push(...(Array.isArray(data.items) ? data.items : []));
+    pageToken = data.nextPageToken || '';
+  } while (pageToken);
+  return calendars;
+}
+
+app.get('/api/owner/google-calendar/status', (req, res) => {
+  if (!requireOwnerApi(req, res)) return;
+  res.setHeader('Cache-Control', 'no-store');
+  return res.json({ ok: true, status: googleCalendarStatus() });
+});
+
+app.get('/api/owner/google-calendar/calendars', async (req, res) => {
+  if (!requireOwnerApi(req, res)) return;
+  try {
+    const calendars = await googleCalendarList();
+    const writable = calendars
+      .filter(calendar => ['owner', 'writer'].includes(calendar.accessRole) && calendar.id)
+      .map(calendar => ({
+        id: calendar.id,
+        summary: clean(calendar.summary || 'Untitled calendar', 200),
+        primary: Boolean(calendar.primary),
+        accessRole: calendar.accessRole,
+        selected: calendar.id === googleCalendarConnection.calendarId
+      }));
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ ok: true, calendars: writable });
+  } catch (error) {
+    return res.status(502).json({ ok: false, message: 'Could not load writable Google calendars: ' + error.message });
+  }
+});
+
+app.post('/api/owner/google-calendar/select', async (req, res) => {
+  if (!requireOwnerApi(req, res)) return;
+  const calendarId = clean(req.body.calendarId, 500);
+  if (!calendarId) return res.status(400).json({ ok: false, message: 'Choose a Google Calendar first.' });
+  try {
+    const calendars = await googleCalendarList();
+    const selected = calendars.find(calendar => calendar.id === calendarId);
+    if (!selected || !['owner', 'writer'].includes(selected.accessRole)) {
+      return res.status(403).json({ ok: false, message: 'Choose a calendar where your Google account has edit access.' });
+    }
+    googleCalendarConnection = {
+      ...googleCalendarConnection,
+      calendarId: selected.id,
+      calendarSummary: clean(selected.summary || 'Google Calendar', 200),
+      lastSyncError: null
+    };
+    await saveGoogleCalendarConnection();
+    const stats = await syncGoogleCalendar();
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ ok: true, status: googleCalendarStatus(), stats, message: 'Calendar connected. The initial two-way sync has finished.' });
+  } catch (error) {
+    googleCalendarConnection.lastSyncError = error.message;
+    await saveGoogleCalendarConnection().catch(() => {});
+    return res.status(502).json({ ok: false, message: 'The calendar was selected, but sync did not finish: ' + error.message, status: googleCalendarStatus() });
+  }
+});
+
+app.post('/api/owner/google-calendar/sync', async (req, res) => {
+  if (!requireOwnerApi(req, res)) return;
+  if (!googleCalendarConnection.refreshToken) return res.status(400).json({ ok: false, message: 'Connect your Google account first.' });
+  if (!googleCalendarConnection.calendarId) return res.status(400).json({ ok: false, message: 'Choose a writable Google Calendar first.' });
+  try {
+    const stats = await syncGoogleCalendar();
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ ok: true, stats, status: googleCalendarStatus(), message: 'Google Calendar and RK Plumbing schedule are synced.' });
+  } catch (error) {
+    return res.status(502).json({ ok: false, message: error.message, status: googleCalendarStatus() });
+  }
+});
+
+app.post('/api/owner/google-calendar/disconnect', async (req, res) => {
+  if (!requireOwnerApi(req, res)) return;
+  const tokenToRevoke = googleCalendarConnection.refreshToken || googleCalendarConnection.accessToken;
+  if (googleCalendarSyncPromise) return res.status(409).json({ ok: false, message: 'Calendar sync is running. Try disconnecting again in a moment.' });
+  if (tokenToRevoke) {
+    try {
+      await fetch('https://oauth2.googleapis.com/revoke', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ token: tokenToRevoke })
+      });
+    } catch {}
+  }
+  googleCalendarConnection = {
+    refreshToken: null, accessToken: null, expiresAt: 0, connectedEmail: '',
+    calendarId: '', calendarSummary: '', lastSyncAt: null, lastSyncError: null, lastSyncStats: null
+  };
+  try {
+    await saveGoogleCalendarConnection();
+    return res.json({ ok: true, status: googleCalendarStatus(), message: 'Google Calendar disconnected. Existing events have not been deleted.' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: 'Could not save the disconnect. Please try again.' });
+  }
 });
 
 app.get('/api/owner/jobs', async (req, res) => {
@@ -710,6 +1026,301 @@ function statusLabelsForCalendar(status) {
   return labels[status] || 'Scheduled';
 }
 
+
+function googleEventTitleForJob(job) {
+  const title = clean(job.title, 120) || 'Scheduled work';
+  const customer = clean(job.customerName, 120);
+  return customer && !['Google Calendar', 'Added from Google Calendar'].includes(customer)
+    ? title + ' — ' + customer
+    : title;
+}
+
+function splitGoogleEventTitle(summary, existingCustomerName = '') {
+  let text = clean(summary, 240) || 'Google Calendar appointment';
+  text = text.replace(/^\[RK Plumbing\]\s*/i, '');
+  const separator = text.match(/\s+[—–]\s+/);
+  if (separator && separator.index !== undefined) {
+    const title = clean(text.slice(0, separator.index), 120) || 'Scheduled work';
+    const customerName = clean(text.slice(separator.index + separator[0].length), 120) || existingCustomerName || 'Google Calendar';
+    return { title, customerName };
+  }
+  return { title: clean(text, 120) || 'Scheduled work', customerName: existingCustomerName || 'Google Calendar' };
+}
+
+function localDateTimeFromGoogle(value) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+  }).formatToParts(new Date(value));
+  const item = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return { date: item.year + '-' + item.month + '-' + item.day, time: item.hour + ':' + item.minute };
+}
+
+function googleEventToScheduleFields(event, existing = {}) {
+  let date;
+  let time;
+  let durationMinutes;
+  if (event.start?.dateTime) {
+    const start = localDateTimeFromGoogle(event.start.dateTime);
+    date = start.date;
+    time = start.time;
+    const endValue = event.end?.dateTime ? new Date(event.end.dateTime).getTime() : new Date(event.start.dateTime).getTime() + 60 * 60000;
+    durationMinutes = Math.round((endValue - new Date(event.start.dateTime).getTime()) / 60000);
+    durationMinutes = Math.max(15, Math.min(720, Number.isFinite(durationMinutes) ? durationMinutes : 60));
+  } else if (event.start?.date) {
+    date = event.start.date;
+    time = '09:00';
+    durationMinutes = 480;
+  } else {
+    return null;
+  }
+
+  const titleParts = splitGoogleEventTitle(event.summary, existing.customerName && existing.customerName !== 'Google Calendar' ? existing.customerName : '');
+  return {
+    title: titleParts.title,
+    customerName: titleParts.customerName,
+    date, time, durationMinutes,
+    address: clean(event.location || existing.address || '', 240),
+    status: existing.status && JOB_STATUSES.has(existing.status) ? existing.status : 'scheduled'
+  };
+}
+
+function makeGoogleEventBody(job) {
+  const durationMinutes = Math.max(15, Math.min(720, Number(job.durationMinutes) || 60));
+  const startWallClock = new Date(String(job.date) + 'T' + String(job.time) + ':00Z');
+  const endWallClock = new Date(startWallClock.getTime() + durationMinutes * 60000);
+  const endDate = endWallClock.getUTCFullYear() + '-' + String(endWallClock.getUTCMonth() + 1).padStart(2, '0') + '-' + String(endWallClock.getUTCDate()).padStart(2, '0');
+  const endTime = String(endWallClock.getUTCHours()).padStart(2, '0') + ':' + String(endWallClock.getUTCMinutes()).padStart(2, '0') + ':00';
+  const startTime = String(job.time) + ':00';
+  const eventId = clean(job.googleCalendarEventId, 200) || String(job.id).replace(/-/g, '').toLowerCase();
+  const body = {
+    id: /^[0-9a-v]{5,1024}$/.test(eventId) ? eventId : undefined,
+    summary: googleEventTitleForJob(job),
+    description: [
+      'RK Plumbing work-schedule entry.',
+      'Status: ' + statusLabelsForCalendar(job.status),
+      'Estimated length: ' + durationMinutes + ' minutes.',
+      'Managed by RK Plumbing Work Schedule.'
+    ].join('\n'),
+    start: { dateTime: String(job.date) + 'T' + startTime, timeZone: 'America/New_York' },
+    end: { dateTime: endDate + 'T' + endTime, timeZone: 'America/New_York' },
+    extendedProperties: {
+      private: { rkPlumbingJobId: String(job.id), rkPlumbingManaged: 'true' }
+    }
+  };
+  if (job.address) body.location = clean(job.address, 240);
+  else body.location = '';
+  if (job.status === 'cancelled') body.status = 'cancelled';
+  return body;
+}
+
+async function listGoogleCalendarEvents(calendarId) {
+  const events = [];
+  let pageToken = '';
+  do {
+    const params = new URLSearchParams({ maxResults: '2500', showDeleted: 'true', timeZone: 'America/New_York' });
+    if (pageToken) params.set('pageToken', pageToken);
+    const url = '/calendars/' + encodeURIComponent(calendarId) + '/events?' + params.toString();
+    const data = await googleApiRequest(url);
+    events.push(...(Array.isArray(data.items) ? data.items : []));
+    pageToken = data.nextPageToken || '';
+  } while (pageToken);
+  return events;
+}
+
+async function insertOrUpdateGoogleEvent(job, event = null) {
+  const calendarId = googleCalendarConnection.calendarId;
+  const body = makeGoogleEventBody(job);
+  if (event && event.id) {
+    const result = await googleApiRequest('/calendars/' + encodeURIComponent(calendarId) + '/events/' + encodeURIComponent(event.id), {
+      method: 'PATCH', body
+    });
+    return result;
+  }
+  const result = await googleApiRequest('/calendars/' + encodeURIComponent(calendarId) + '/events', {
+    method: 'POST', body
+  });
+  return result;
+}
+
+async function deleteGoogleEvent(eventId) {
+  await googleApiRequest('/calendars/' + encodeURIComponent(googleCalendarConnection.calendarId) + '/events/' + encodeURIComponent(eventId), {
+    method: 'DELETE'
+  });
+}
+
+async function syncGoogleCalendarOnce() {
+  if (!googleCalendarConnection.refreshToken) throw new Error('Connect your Google account first.');
+  if (!googleCalendarConnection.calendarId) throw new Error('Choose a writable Google Calendar first.');
+
+  const calendarId = googleCalendarConnection.calendarId;
+  const events = await listGoogleCalendarEvents(calendarId);
+  const eventById = new Map(events.filter(event => event && event.id).map(event => [event.id, event]));
+  const nowIso = new Date().toISOString();
+  const stats = { importedFromGoogle: 0, updatedFromGoogle: 0, createdInGoogle: 0, updatedInGoogle: 0, cancelled: 0, deletedFromGoogle: 0, unchanged: 0 };
+
+  await mutateJobs(async jobs => {
+    const processed = new Set();
+
+    for (const event of events) {
+      if (!event || !event.id) continue;
+      if (event.recurringEventId || event.recurrence) continue;
+      const privateProps = event.extendedProperties?.private || {};
+      const linkedJobId = clean(privateProps.rkPlumbingJobId, 100);
+      let job = (linkedJobId && jobs.find(item => item.id === linkedJobId)) ||
+        jobs.find(item => item.googleCalendarId === calendarId && item.googleCalendarEventId === event.id);
+
+      if (event.status === 'cancelled') {
+        if (job) {
+          if (job.status !== 'cancelled') {
+            job.status = 'cancelled';
+            job.updatedAt = nowIso;
+            stats.cancelled++;
+          } else {
+            stats.unchanged++;
+          }
+          job.googleCalendarId = calendarId;
+          job.googleCalendarEventId = event.id;
+          job.googleEventUpdatedAt = event.updated || job.googleEventUpdatedAt || nowIso;
+          job.googleLastSyncedJobUpdatedAt = job.updatedAt;
+          processed.add(job.id);
+        }
+        continue;
+      }
+
+      if (job) {
+        processed.add(job.id);
+        job.googleCalendarId = calendarId;
+        job.googleCalendarEventId = event.id;
+
+        const markersMissing = !job.googleLastSyncedJobUpdatedAt || !job.googleEventUpdatedAt;
+        const localChanged = !markersMissing && job.updatedAt !== job.googleLastSyncedJobUpdatedAt;
+        const googleChanged = !markersMissing && Boolean(event.updated) && event.updated !== job.googleEventUpdatedAt;
+        const googleIsNewer = googleChanged && (!localChanged || Date.parse(event.updated) > Date.parse(job.updatedAt));
+
+        if (googleIsNewer) {
+          const fields = googleEventToScheduleFields(event, job);
+          if (fields) {
+            Object.assign(job, fields);
+            job.updatedAt = nowIso;
+            job.googleEventUpdatedAt = event.updated || nowIso;
+            job.googleLastSyncedJobUpdatedAt = job.updatedAt;
+            stats.updatedFromGoogle++;
+          }
+        } else if (localChanged || googleChanged || markersMissing) {
+          const updated = await insertOrUpdateGoogleEvent(job, event);
+          job.googleEventUpdatedAt = updated?.updated || nowIso;
+          job.googleLastSyncedJobUpdatedAt = job.updatedAt;
+          stats.updatedInGoogle++;
+        } else {
+          job.googleEventUpdatedAt = event.updated || job.googleEventUpdatedAt || nowIso;
+          job.googleLastSyncedJobUpdatedAt = job.updatedAt;
+          stats.unchanged++;
+        }
+        continue;
+      }
+
+      if (linkedJobId) {
+        // This event belongs to a job that no longer exists in the work schedule.
+        await deleteGoogleEvent(event.id);
+        stats.deletedFromGoogle++;
+        continue;
+      }
+
+      const fields = googleEventToScheduleFields(event);
+      if (!fields) continue;
+      const importedJob = {
+        id: crypto.randomUUID(),
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        phone: '',
+        email: '',
+        notes: '',
+        ...fields,
+        googleCalendarId: calendarId,
+        googleCalendarEventId: event.id,
+        googleEventUpdatedAt: event.updated || nowIso
+      };
+      importedJob.googleLastSyncedJobUpdatedAt = importedJob.updatedAt;
+      jobs.push(importedJob);
+      processed.add(importedJob.id);
+
+      // Tag manually-created Google events to make later syncs idempotent.
+      const patched = await insertOrUpdateGoogleEvent(importedJob, event);
+      importedJob.googleCalendarEventId = patched?.id || event.id;
+      importedJob.googleEventUpdatedAt = patched?.updated || event.updated || nowIso;
+      importedJob.googleLastSyncedJobUpdatedAt = importedJob.updatedAt;
+      stats.importedFromGoogle++;
+    }
+
+    for (const job of jobs) {
+      if (processed.has(job.id) && job.googleCalendarId === calendarId && job.googleCalendarEventId) continue;
+      if (job.status === 'cancelled' && job.googleCalendarId === calendarId && job.googleCalendarEventId && eventById.get(job.googleCalendarEventId)?.status === 'cancelled') {
+        processed.add(job.id);
+        continue;
+      }
+      if (job.googleCalendarId === calendarId && job.googleCalendarEventId) {
+        const associated = eventById.get(job.googleCalendarEventId);
+        if (!associated) {
+          // If Google removed the event permanently, reset the linkage and recreate it only for open work.
+          job.googleCalendarEventId = '';
+          job.googleEventUpdatedAt = '';
+          job.googleLastSyncedJobUpdatedAt = '';
+        } else if (associated.status === 'cancelled') {
+          processed.add(job.id);
+          continue;
+        }
+      }
+      if (job.status === 'cancelled') {
+        processed.add(job.id);
+        continue;
+      }
+
+      const previousCalendarId = job.googleCalendarId || '';
+      const linkedEvent = previousCalendarId === calendarId && job.googleCalendarEventId ? eventById.get(job.googleCalendarEventId) : null;
+      if (linkedEvent && linkedEvent.status !== 'cancelled') continue;
+
+      const createdOrUpdated = await insertOrUpdateGoogleEvent(job, linkedEvent);
+      job.googleCalendarId = calendarId;
+      job.googleCalendarEventId = createdOrUpdated?.id || job.googleCalendarEventId || '';
+      job.googleEventUpdatedAt = createdOrUpdated?.updated || nowIso;
+      job.googleLastSyncedJobUpdatedAt = job.updatedAt;
+      stats.createdInGoogle++;
+    }
+  });
+
+  googleCalendarConnection.lastSyncAt = new Date().toISOString();
+  googleCalendarConnection.lastSyncError = null;
+  googleCalendarConnection.lastSyncStats = stats;
+  await saveGoogleCalendarConnection();
+  return stats;
+}
+
+async function syncGoogleCalendar() {
+  if (googleCalendarSyncPromise) return googleCalendarSyncPromise;
+  googleCalendarSyncPromise = (async () => {
+    try {
+      return await syncGoogleCalendarOnce();
+    } catch (error) {
+      googleCalendarConnection.lastSyncError = error.message;
+      await saveGoogleCalendarConnection().catch(() => {});
+      throw error;
+    } finally {
+      googleCalendarSyncPromise = null;
+    }
+  })();
+  return googleCalendarSyncPromise;
+}
+
+function startGoogleCalendarSyncLoop() {
+  const timer = setInterval(() => {
+    if (!googleCalendarConnection.refreshToken || !googleCalendarConnection.calendarId || googleCalendarSyncPromise) return;
+    syncGoogleCalendar().catch(error => console.error('Google Calendar background sync failed:', error.message));
+  }, 60 * 1000);
+  timer.unref();
+}
+
 app.get('/api/health', (req, res) => {
   res.json({
     ok: true,
@@ -837,10 +1448,12 @@ app.use((req, res, next) => {
 initializeJobStorage()
   .then(initializeReviewAndPasswordStorage)
   .then(initializeCalendarFeedStorage)
+  .then(initializeGoogleCalendarStorage)
   .then(() => {
     app.listen(PORT, () => {
       console.log('RK Plumbing website listening on port ' + PORT);
       console.log('Owner work schedule and review storage ready at ' + DATA_DIR);
+      startGoogleCalendarSyncLoop();
     });
   })
   .catch(error => {
