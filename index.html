@@ -219,7 +219,7 @@ async function loadBioPortrait(){
    if(!response.ok)throw new Error('Photo data could not be loaded: '+file);
    return response.text();
   }));
-  const encoded=parts.join('').replace(/\\s+/g,'');
+  const encoded=parts.join('').trim();
   if(!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded))throw new Error('Photo data is not valid base64.');
   image.src='data:image/webp;base64,'+encoded;
  }catch(error){
