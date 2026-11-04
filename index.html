@@ -101,7 +101,7 @@ footer{background:var(--navy);color:#c9d7e6;padding:30px 0}.footer-row{display:f
 </div></section>
 
 <section id="about"><div class="container about-grid">
-<div class="about-photo"><img id="robert-bio-portrait" alt="Robert Knight, Licensed Master Plumber" loading="lazy"></div>
+<div class="about-photo"><img id="robert-bio-portrait" src="#" alt="Robert Knight, Licensed Master Plumber" loading="lazy"></div>
 <div class="about-copy"><div class="eyebrow">About Robert Knight</div><h2>Plumbing you can count on.</h2>
 <div class="highlight"><strong>Licensed Master Plumber</strong>From small leaks to big repairs, installs and remodels — if you need reliable plumbing work you can trust, we’re here to help.</div>
 <p><strong>Robert Knight</strong> was born and raised in Sullivan County, NH. He attended Stevens High School and local technical programs before graduating in 2015. After graduation, Robert began his career in the plumbing trade, gaining valuable hands-on experience and developing a strong commitment to quality workmanship. Over the past decade, he has continued to build his knowledge and skills through years of experience in the field.</p>
@@ -213,17 +213,19 @@ async function loadBioPortrait(){
  const image=document.getElementById('robert-bio-portrait');
  if(!image)return;
  try{
-  const files=['robert-bio-photo-00.bin','robert-bio-photo-01.bin','robert-bio-photo-02.bin','robert-bio-photo-03.bin','robert-bio-photo-04.bin'];
-  const pieces=await Promise.all(files.map(async file=>{
+  const files=['bio_b64_00.txt','bio_b64_01.txt','bio_b64_02.txt','bio_b64_03.txt','bio_b64_04.txt','bio_b64_05.txt','bio_b64_06.txt'];
+  const parts=await Promise.all(files.map(async file=>{
    const response=await fetch('/'+file,{cache:'force-cache'});
-   if(!response.ok)throw new Error('Portrait image part could not be loaded');
-   return response.arrayBuffer();
+   if(!response.ok)throw new Error('Photo data could not be loaded: '+file);
+   return response.text();
   }));
-  image.src=URL.createObjectURL(new Blob(pieces,{type:'image/webp'}));
+  const encoded=parts.join('').replace(/\\s+/g,'');
+  if(!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded))throw new Error('Photo data is not valid base64.');
+  image.src='data:image/webp;base64,'+encoded;
  }catch(error){
   console.error('Robert Knight portrait could not be loaded:',error);
+  image.hidden=true;
  }
 }
 loadBioPortrait();
 </script></body>
-</html>
