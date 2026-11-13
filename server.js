@@ -1426,6 +1426,93 @@ app.post('/api/request-service', async (req, res) => {
   }
 });
 
+
+const INVENTORY_FILE = path.join(DATA_DIR, 'inventory.json');
+let inventoryWriteQueue = Promise.resolve();
+async function initializeInventoryStorage() {
+  try { await fs.writeFile(INVENTORY_FILE, '[]', { flag: 'wx', mode: 0o600 }); }
+  catch (error) { if (error.code !== 'EEXIST') throw error; }
+  const items = JSON.parse(await fs.readFile(INVENTORY_FILE, 'utf8'));
+  if (!Array.isArray(items)) throw new Error('Invalid inventory storage.');
+}
+async function readInventory() {
+  const items = JSON.parse(await fs.readFile(INVENTORY_FILE, 'utf8'));
+  if (!Array.isArray(items)) throw new Error('Invalid inventory storage.');
+  return items;
+}
+function mutateInventory(mutator) {
+  const operation = inventoryWriteQueue.then(async () => {
+    const items = await readInventory();
+    const result = mutator(items);
+    await atomicWriteFile(INVENTORY_FILE, items);
+    return result;
+  });
+  inventoryWriteQueue = operation.catch(() => {});
+  return operation;
+}
+function validateInventory(input) {
+  const name = clean(input.name, 120);
+  const category = clean(input.category, 80);
+  const sku = clean(input.sku, 80);
+  const location = clean(input.location, 100);
+  const unit = clean(input.unit, 30) || 'each';
+  const notes = clean(input.notes, 500);
+  const quantity = Number(input.quantity);
+  const minimum = Number(input.minimum);
+  const price = Number(input.price);
+  if (!name) return { error: 'Enter a supply name.' };
+  if (![quantity, minimum, price].every(Number.isFinite) || quantity < 0 || minimum < 0 || price < 0 || quantity > 1000000 || minimum > 1000000 || price > 1000000) {
+    return { error: 'Quantity, minimum stock and purchase price must be valid nonnegative numbers.' };
+  }
+  if (![quantity, minimum].every(n => Math.round(n * 1000) === n * 1000) || Math.round(price * 100) !== price * 100) {
+    return { error: 'Use up to three decimal places for quantities and two for price.' };
+  }
+  return { item: { name, category, sku, location, unit, notes, quantity, minimum, price, updatedAt: new Date().toISOString() } };
+}
+app.get('/api/owner/inventory', async (req, res) => {
+  if (!requireOwnerApi(req, res)) return;
+  try { res.setHeader('Cache-Control', 'no-store'); res.json({ ok: true, items: await readInventory() }); }
+  catch (error) { console.error('Inventory read failed:', error); res.status(500).json({ ok: false, message: 'Could not load inventory.' }); }
+});
+app.post('/api/owner/inventory', async (req, res) => {
+  if (!requireOwnerApi(req, res)) return;
+  const validated = validateInventory(req.body || {});
+  if (validated.error) return res.status(400).json({ ok: false, message: validated.error });
+  try {
+    const item = { id: crypto.randomUUID(), createdAt: new Date().toISOString(), ...validated.item };
+    await mutateInventory(items => { items.push(item); });
+    res.status(201).json({ ok: true, item });
+  } catch (error) { console.error('Inventory create failed:', error); res.status(500).json({ ok: false, message: 'Could not save inventory.' }); }
+});
+app.put('/api/owner/inventory/:id', async (req, res) => {
+  if (!requireOwnerApi(req, res)) return;
+  const validated = validateInventory(req.body || {});
+  if (validated.error) return res.status(400).json({ ok: false, message: validated.error });
+  try {
+    const item = await mutateInventory(items => {
+      const existing = items.find(entry => entry.id === req.params.id);
+      if (!existing) return null;
+      Object.assign(existing, validated.item);
+      return existing;
+    });
+    if (!item) return res.status(404).json({ ok: false, message: 'Supply not found.' });
+    res.json({ ok: true, item });
+  } catch (error) { console.error('Inventory update failed:', error); res.status(500).json({ ok: false, message: 'Could not update inventory.' }); }
+});
+app.delete('/api/owner/inventory/:id', async (req, res) => {
+  if (!requireOwnerApi(req, res)) return;
+  try {
+    const removed = await mutateInventory(items => {
+      const index = items.findIndex(item => item.id === req.params.id);
+      if (index < 0) return false;
+      items.splice(index, 1);
+      return true;
+    });
+    if (!removed) return res.status(404).json({ ok: false, message: 'Supply not found.' });
+    res.json({ ok: true });
+  } catch (error) { console.error('Inventory delete failed:', error); res.status(500).json({ ok: false, message: 'Could not delete supply.' }); }
+});
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll('&', '&amp;')
@@ -1449,6 +1536,7 @@ initializeJobStorage()
   .then(initializeReviewAndPasswordStorage)
   .then(initializeCalendarFeedStorage)
   .then(initializeGoogleCalendarStorage)
+  .then(initializeInventoryStorage)
   .then(() => {
     app.listen(PORT, () => {
       console.log('RK Plumbing website listening on port ' + PORT);
