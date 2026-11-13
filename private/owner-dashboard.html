@@ -105,6 +105,7 @@ form{display:grid;gap:13px}.fields-2{display:grid;grid-template-columns:1fr 1fr;
 <nav class="dashboard-tabs" aria-label="Owner tools">
 <button type="button" class="tab-button active" data-tab="schedule" aria-selected="true">Work Schedule</button>
 <button type="button" class="tab-button" data-tab="calendar" aria-selected="false">30-Day Calendar</button>
+<button type="button" class="tab-button" data-tab="inventory" aria-selected="false">Inventory</button>
 <button type="button" class="tab-button" data-tab="reviews" aria-selected="false">Review Approvals <span id="pending-badge" class="tab-badge">0</span></button>
 <button type="button" class="tab-button" data-tab="password" aria-selected="false">Change Password</button>
 </nav>
@@ -204,6 +205,44 @@ The site needs Google OAuth credentials in Railway before the Connect button can
 </div>
 </details>
 </div>
+</div>
+</section>
+
+<section id="inventory-panel" class="tab-panel" hidden>
+<div class="stats">
+<div class="stat"><span>Supply types</span><strong id="inv-types">0</strong></div>
+<div class="stat"><span>Low / out of stock</span><strong id="inv-low">0</strong></div>
+<div class="stat"><span>Total inventory value</span><strong id="inv-value">$0.00</strong></div>
+</div>
+<div class="layout">
+<section class="card form-card">
+<div class="card-heading"><div><h2 id="inv-form-title">Add supplies</h2><p class="hint">Track what you have on hand and what you paid per unit.</p></div></div>
+<form id="inv-form">
+<input type="hidden" id="inv-id">
+<div class="field"><label for="inv-name">Supply / material *</label><input id="inv-name" maxlength="120" required placeholder='e.g. 3/4" PEX elbow'></div>
+<div class="fields-2">
+<div class="field"><label for="inv-category">Category</label><input id="inv-category" maxlength="80" placeholder="Fittings, valves, tools…"></div>
+<div class="field"><label for="inv-sku">Part number / SKU</label><input id="inv-sku" maxlength="80"></div>
+</div>
+<div class="fields-2">
+<div class="field"><label for="inv-quantity">Quantity on hand *</label><input id="inv-quantity" type="number" min="0" max="1000000" step="0.001" value="0" required></div>
+<div class="field"><label for="inv-unit">Unit</label><select id="inv-unit"><option value="each">Each</option><option value="feet">Feet</option><option value="rolls">Rolls</option><option value="boxes">Boxes</option><option value="packs">Packs</option><option value="other">Other</option></select></div>
+</div>
+<div class="fields-2">
+<div class="field"><label for="inv-price">Purchase price per unit ($) *</label><input id="inv-price" type="number" min="0" max="1000000" step="0.01" value="0" required></div>
+<div class="field"><label for="inv-minimum">Low-stock threshold *</label><input id="inv-minimum" type="number" min="0" max="1000000" step="0.001" value="0" required></div>
+</div>
+<div class="field"><label for="inv-location">Storage location</label><input id="inv-location" maxlength="100" placeholder="Shop, truck, shelf…"></div>
+<div class="field"><label for="inv-notes">Notes</label><textarea id="inv-notes" maxlength="500" placeholder="Supplier, size, brand…"></textarea></div>
+<div class="form-actions"><button type="submit" id="inv-save">Save supply</button><button type="button" id="inv-cancel" class="secondary" hidden>Cancel edit</button></div>
+<div class="form-status" id="inv-status" role="status" aria-live="polite"></div>
+</form>
+</section>
+<section class="card list-card">
+<div class="list-head"><div><h2>Supplies on hand</h2><p id="inv-count">Loading inventory…</p></div><button type="button" class="secondary" id="inv-refresh">Refresh</button></div>
+<div class="toolbar"><input type="search" id="inv-search" placeholder="Search supplies, SKU, location…"><select id="inv-filter" aria-label="Filter inventory"><option value="all">All supplies</option><option value="low">Low stock</option><option value="out">Out of stock</option></select></div>
+<div id="inv-list" class="job-list"><div class="empty">Loading inventory…</div></div>
+</section>
 </div>
 </section>
 <section id="reviews-panel" class="tab-panel" hidden>
@@ -622,6 +661,86 @@ document.getElementById('owner-review-list').addEventListener('click',async even
  }catch(error){setReviewMessage(error.message,true);}
  finally{button.disabled=false;}
 });
+
+
+let inventoryItems=[];
+const inventoryMoney=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n||0);
+const inventoryNumber=n=>new Intl.NumberFormat('en-US',{maximumFractionDigits:3}).format(n||0);
+function inventoryStatus(message,isError=false){
+ const el=document.getElementById('inv-status');el.textContent=message;el.classList.toggle('error',isError);
+}
+function resetInventoryForm(){
+ document.getElementById('inv-form').reset();
+ document.getElementById('inv-id').value='';
+ document.getElementById('inv-quantity').value='0';
+ document.getElementById('inv-price').value='0';
+ document.getElementById('inv-minimum').value='0';
+ document.getElementById('inv-form-title').textContent='Add supplies';
+ document.getElementById('inv-save').textContent='Save supply';
+ document.getElementById('inv-cancel').hidden=true;
+}
+function renderInventory(){
+ const low=inventoryItems.filter(i=>Number(i.quantity)<=Number(i.minimum));
+ const value=inventoryItems.reduce((sum,i)=>sum+Number(i.quantity)*Number(i.price),0);
+ document.getElementById('inv-types').textContent=inventoryItems.length;
+ document.getElementById('inv-low').textContent=low.length;
+ document.getElementById('inv-value').textContent=inventoryMoney(value);
+ const q=document.getElementById('inv-search').value.trim().toLowerCase();
+ const filter=document.getElementById('inv-filter').value;
+ const items=inventoryItems.filter(i=>(!q||[i.name,i.category,i.sku,i.location,i.notes].some(v=>String(v||'').toLowerCase().includes(q)))&&(filter==='all'||(filter==='low'&&Number(i.quantity)<=Number(i.minimum))||(filter==='out'&&Number(i.quantity)===0)));
+ document.getElementById('inv-count').textContent=items.length+' of '+inventoryItems.length+' supply types';
+ document.getElementById('inv-list').innerHTML=items.length?items.map(i=>{
+ const out=Number(i.quantity)===0,low=Number(i.quantity)<=Number(i.minimum);
+ return '<article class="job-card'+(low?' is-overdue':'')+'"><div class="job-top"><div><div class="job-title">'+escapeHtml(i.name)+'</div><div class="job-subtitle">'+escapeHtml([i.category,i.sku,i.location].filter(Boolean).join(' · '))+'</div></div><span class="status '+(out?'cancelled':low?'in-progress':'completed')+'">'+(out?'Out of stock':low?'Low stock':'In stock')+'</span></div><div class="job-meta"><div><span class="meta-label">On hand</span><strong>'+inventoryNumber(i.quantity)+' '+escapeHtml(i.unit)+'</strong></div><div><span class="meta-label">Reorder at</span>'+inventoryNumber(i.minimum)+'</div><div><span class="meta-label">Unit purchase price</span>'+inventoryMoney(i.price)+'</div><div><span class="meta-label">Stock value</span><strong>'+inventoryMoney(i.quantity*i.price)+'</strong></div></div>'+(i.notes?'<p class="job-notes">'+escapeHtml(i.notes)+'</p>':'')+'<div class="job-actions"><button type="button" data-inv-action="use" data-id="'+escapeHtml(i.id)+'" class="secondary">Use stock</button><button type="button" data-inv-action="restock" data-id="'+escapeHtml(i.id)+'" class="secondary">Restock</button><button type="button" data-inv-action="edit" data-id="'+escapeHtml(i.id)+'">Edit</button><button type="button" data-inv-action="delete" data-id="'+escapeHtml(i.id)+'" class="danger">Delete</button></div></article>';
+ }).join(''):'<div class="empty"><strong>No supplies found</strong>Add your first supply or adjust the search filters.</div>';
+}
+async function loadInventory(){
+ try{const data=await api('/api/owner/inventory');inventoryItems=data.items||[];renderInventory();}
+ catch(error){inventoryStatus(error.message,true);document.getElementById('inv-list').textContent='Unable to load inventory.';}
+}
+document.getElementById('inv-form').addEventListener('submit',async event=>{
+ event.preventDefault();const id=document.getElementById('inv-id').value;
+ const fields={name:'name',category:'category',sku:'sku',quantity:'quantity',unit:'unit',price:'price',minimum:'minimum',location:'location',notes:'notes'};
+ const item={};for(const [key,field] of Object.entries(fields))item[key]=document.getElementById('inv-'+field).value;
+ const button=document.getElementById('inv-save');button.disabled=true;inventoryStatus('');
+ try{
+ await api(id?'/api/owner/inventory/'+encodeURIComponent(id):'/api/owner/inventory',{method:id?'PUT':'POST',body:JSON.stringify(item)});
+ resetInventoryForm();await loadInventory();inventoryStatus(id?'Supply updated.':'Supply added.');
+ }catch(error){inventoryStatus(error.message,true);}
+ finally{button.disabled=false;}
+});
+document.getElementById('inv-cancel').addEventListener('click',resetInventoryForm);
+document.getElementById('inv-refresh').addEventListener('click',loadInventory);
+document.getElementById('inv-search').addEventListener('input',renderInventory);
+document.getElementById('inv-filter').addEventListener('change',renderInventory);
+document.getElementById('inv-list').addEventListener('click',async event=>{
+ const button=event.target.closest('button[data-inv-action]');if(!button)return;
+ const item=inventoryItems.find(i=>i.id===button.dataset.id);if(!item)return;
+ const action=button.dataset.invAction;
+ if(action==='edit'){
+  for(const field of ['name','category','sku','quantity','unit','price','minimum','location','notes'])document.getElementById('inv-'+field).value=item[field]??'';
+  document.getElementById('inv-id').value=item.id;document.getElementById('inv-form-title').textContent='Edit supply';
+  document.getElementById('inv-save').textContent='Update supply';document.getElementById('inv-cancel').hidden=false;
+  document.getElementById('inv-form').scrollIntoView({behavior:'smooth',block:'start'});return;
+ }
+ if(action==='delete'&&!confirm('Delete '+item.name+' from inventory?'))return;
+ let updated={...item};
+ if(action==='use'||action==='restock'){
+  const input=prompt(action==='use'?'How many units did you use?':'How many units are you adding?', '1');
+  if(input===null)return;
+  const amount=Number(input);
+  if(!Number.isFinite(amount)||amount<=0||Math.round(amount*1000)!==amount*1000){alert('Enter a positive quantity (up to 3 decimal places).');return;}
+  if(action==='use'&&amount>item.quantity){alert('You cannot use more than you have on hand.');return;}
+  updated.quantity=Number((Number(item.quantity)+(action==='use'?-amount:amount)).toFixed(3));
+ }
+ button.disabled=true;inventoryStatus('');
+ try{
+  await api('/api/owner/inventory/'+encodeURIComponent(item.id),{method:action==='delete'?'DELETE':'PUT',...(action==='delete'?{}:{body:JSON.stringify(updated)})});
+  await loadInventory();inventoryStatus(action==='delete'?'Supply deleted.':'Inventory updated.');
+ }catch(error){inventoryStatus(error.message,true);}
+ finally{button.disabled=false;}
+});
+loadInventory();
 
 const passwordForm=document.getElementById('change-password-form');
 passwordForm.addEventListener('submit',async event=>{
