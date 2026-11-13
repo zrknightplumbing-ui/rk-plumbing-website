@@ -1464,7 +1464,7 @@ function validateInventory(input) {
   if (![quantity, minimum, price].every(Number.isFinite) || quantity < 0 || minimum < 0 || price < 0 || quantity > 1000000 || minimum > 1000000 || price > 1000000) {
     return { error: 'Quantity, minimum stock and purchase price must be valid nonnegative numbers.' };
   }
-  if (![quantity, minimum].every(n => Math.round(n * 1000) === n * 1000) || Math.round(price * 100) !== price * 100) {
+  if (![quantity, minimum].every(n => Math.abs(Math.round(n * 1000) - n * 1000) < 1e-7) || Math.abs(Math.round(price * 100) - price * 100) > 1e-7) {
     return { error: 'Use up to three decimal places for quantities and two for price.' };
   }
   return { item: { name, category, sku, location, unit, notes, quantity, minimum, price, updatedAt: new Date().toISOString() } };
